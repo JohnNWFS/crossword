@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"place_word_in_grid",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"place_word_in_grid",
+  "parent":{
+    "name":"Scripts",
+    "path":"folders/Scripts.yy",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

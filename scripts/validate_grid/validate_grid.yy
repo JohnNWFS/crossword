@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"validate_grid",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"validate_grid",
+  "parent":{
+    "name":"Scripts",
+    "path":"folders/Scripts.yy",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

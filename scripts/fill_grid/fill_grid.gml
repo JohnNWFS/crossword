@@ -800,6 +800,50 @@ function crossword_solver_undo_changes(changes) {
     }
 }
 
+function crossword_letter_commonness_score(ch) {
+    switch (ch) {
+        case "E": case "A": case "R": case "I": case "O": case "T": case "N": return 3.0;
+        case "S": case "L": case "C": case "U": case "D": case "P": case "M": case "H": return 2.0;
+        case "G": case "B": case "F": case "Y": case "W": return 1.0;
+        case "K": case "V": return 0.0;
+        case "X": case "Z": case "J": case "Q": return -2.0;
+    }
+    return 0.5;
+}
+
+function crossword_word_commonness_score(word) {
+    var n = string_length(word);
+    var score_val = 0.0;
+    var vowel_count = 0;
+    var consonant_run = 0;
+
+    for (var i = 1; i <= n; i++) {
+        var ch = string_char_at(word, i);
+        score_val += crossword_letter_commonness_score(ch);
+
+        var is_v = crossword_is_vowel(ch);
+        if (is_v) {
+            vowel_count++;
+            consonant_run = 0;
+        } else {
+            consonant_run++;
+            if (consonant_run >= 3) score_val -= 1.0;
+        }
+
+        if (i < n) {
+            var b = ch + string_char_at(word, i + 1);
+            if (b == "TH" || b == "HE" || b == "IN" || b == "ER" || b == "AN" || b == "RE" || b == "ON" || b == "AT" || b == "EN" || b == "ND") score_val += 1.2;
+            if (b == "QJ" || b == "QZ" || b == "JQ" || b == "ZX" || b == "QX") score_val -= 2.0;
+            if (ch == "Q" && string_char_at(word, i + 1) != "U") score_val -= 3.0;
+        }
+    }
+
+    var vowel_ratio = vowel_count / max(1, n);
+    score_val -= abs(vowel_ratio - 0.42) * 4.0;
+
+    return score_val + random(0.05);
+}
+
 function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
     var slot_data = vs.slots[slot_idx];
     var key_len = string(slot_data.len);
@@ -813,12 +857,11 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
     var bucket_count = ds_list_size(bucket);
     var slot_dir = (slot_data.dir == "A") ? "horizontal" : "vertical";
 
-    var start_idx = irandom(max(0, bucket_count - 1));
-    var out_count = 0;
+    var ranked = [];
+    var ranked_count = 0;
 
     for (var i = 0; i < bucket_count; i++) {
-        var bucket_idx = (start_idx + i) mod bucket_count;
-        var w = bucket[| bucket_idx];
+        var w = bucket[| i];
 
         if (ds_map_exists(global.usedWords, w)) continue;
         if (!crossword_word_matches_pattern(w, pattern)) continue;
@@ -827,7 +870,27 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         if (!crossword_candidate_passes_letter_rules(w, slot_data)) continue;
         if (!crossword_candidate_passes_prefix_deadend_rules(w, slot_data)) continue;
 
-        out[out_count++] = w;
+        if (global.commonness_bias_enabled) {
+            var common_score = crossword_word_commonness_score(w);
+            var ins = ranked_count;
+            while (ins > 0 && ranked[ins - 1].s < common_score) {
+                ins--;
+            }
+
+            array_resize(ranked, ranked_count + 1);
+            for (var j = ranked_count; j > ins; j--) {
+                ranked[j] = ranked[j - 1];
+            }
+            ranked[ins] = { w: w, s: common_score };
+            ranked_count++;
+        } else {
+            ranked[ranked_count++] = { w: w, s: 0.0 };
+        }
+    }
+
+    out = array_create(ranked_count, "");
+    for (var k = 0; k < ranked_count; k++) {
+        out[k] = ranked[k].w;
     }
 
     return out;

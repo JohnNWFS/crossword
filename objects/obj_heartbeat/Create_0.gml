@@ -33,6 +33,7 @@ global.fill_attempt_count = 0;
 global.step15_min_ratio = 0.60;
 global.slot_try_limit = 100;
 global.long_entry_min_len = 7;
+global.commonness_bias_enabled = true;
 
 letter_entry_active = false;
 letter_entry_col = -1;

@@ -4,6 +4,29 @@ if (solver_active) {
     crossword_solver_tick();
 }
 
+if (mouse_check_button_pressed(mb_left)) {
+    if (point_in_rectangle(mouse_x, mouse_y, size_prev_x, size_prev_y, size_prev_x + size_prev_w, size_prev_y + size_prev_h)) {
+        if (current_size_index > 0) {
+            current_size_index--;
+            set_grid_size(grid_size_options[current_size_index]);
+        }
+        exit;
+    }
+
+    if (point_in_rectangle(mouse_x, mouse_y, size_next_x, size_next_y, size_next_x + size_next_w, size_next_y + size_next_h)) {
+        if (current_size_index < array_length(grid_size_options) - 1) {
+            current_size_index++;
+            set_grid_size(grid_size_options[current_size_index]);
+        }
+        exit;
+    }
+
+    if (point_in_rectangle(mouse_x, mouse_y, new_blank_x, new_blank_y, new_blank_x + new_blank_w, new_blank_y + new_blank_h)) {
+        new_blank_grid();
+        exit;
+    }
+}
+
 if (letter_entry_active) {
     if (keyboard_check_pressed(vk_escape)) {
         letter_entry_active = false;
@@ -41,21 +64,17 @@ if (mouse_check_button_pressed(mb_left)
                 status_text = "Type letter A-Z (Esc to cancel)";
             }
         } else {
+            var new_value = "INVALID";
             if (grid[# clicked_i, clicked_j] == "INVALID") {
-                grid[# clicked_i, clicked_j] = "";
-            } else {
-                grid[# clicked_i, clicked_j] = "INVALID";
+                new_value = "";
             }
+
+            grid[# clicked_i, clicked_j] = new_value;
 
             var opposite_i = grid_width - 1 - clicked_i;
             var opposite_j = grid_height - 1 - clicked_j;
-
             if (clicked_i != opposite_i || clicked_j != opposite_j) {
-                if (grid[# opposite_i, opposite_j] == "INVALID") {
-                    grid[# opposite_i, opposite_j] = "";
-                } else {
-                    grid[# opposite_i, opposite_j] = "INVALID";
-                }
+                grid[# opposite_i, opposite_j] = new_value;
             }
         }
     }

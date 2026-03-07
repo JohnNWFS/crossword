@@ -42,3 +42,15 @@ if (variable_global_exists("fillLocked") && ds_exists(global.fillLocked, ds_type
 if (variable_global_exists("usedWords") && ds_exists(global.usedWords, ds_type_map)) {
     ds_map_destroy(global.usedWords);
 }
+
+if (variable_global_exists("prefix2ByLength") && ds_exists(global.prefix2ByLength, ds_type_map)) {
+    var pkey = ds_map_find_first(global.prefix2ByLength);
+    while (!is_undefined(pkey)) {
+        var pmap = global.prefix2ByLength[? pkey];
+        if (ds_exists(pmap, ds_type_map)) {
+            ds_map_destroy(pmap);
+        }
+        pkey = ds_map_find_next(global.prefix2ByLength, pkey);
+    }
+    ds_map_destroy(global.prefix2ByLength);
+}

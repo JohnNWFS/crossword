@@ -3,6 +3,18 @@
 var tiny_font = asset_get_index("fnt_tiny");
 var default_font = draw_get_font();
 
+// Top controls
+draw_rectangle(size_prev_x, size_prev_y, size_prev_x + size_prev_w, size_prev_y + size_prev_h, true);
+draw_text(size_prev_x + 12, size_prev_y + 8, "<");
+
+draw_text(size_prev_x + 48, size_prev_y + 8, "Grid: " + string(grid_width) + "x" + string(grid_height));
+
+draw_rectangle(size_next_x, size_next_y, size_next_x + size_next_w, size_next_y + size_next_h, true);
+draw_text(size_next_x + 12, size_next_y + 8, ">");
+
+draw_rectangle(new_blank_x, new_blank_y, new_blank_x + new_blank_w, new_blank_y + new_blank_h, true);
+draw_text(new_blank_x + 12, new_blank_y + 8, "New Blank Grid");
+
 var slot_numbers = ds_map_create();
 var slots = crossword_build_slots();
 for (var i = 0; i < array_length(slots); i++) {
@@ -55,14 +67,19 @@ if (current_time < global.solver_fail_until) {
 }
 
 var text_y = padding + (grid_height * cell_size) + 16;
-draw_text(padding, text_y, "Target max attempts: " + string(global.fill_attempt_limit));
-draw_text(padding, text_y + 24, "Attempt count: " + string(global.fill_attempt_count));
+var template_label = current_template_name;
+if (template_label == "") template_label = "(unsaved)";
+draw_text(padding, text_y, "Template: " + template_label);
+draw_text(padding, text_y + 24, "Click cells to toggle mirrored blocks");
+draw_text(padding, text_y + 48, "Target max attempts: " + string(global.fill_attempt_limit));
+draw_text(padding, text_y + 72, "Attempt count: " + string(global.fill_attempt_count));
+
 draw_set_color(c_lime);
-draw_text(padding, text_y + 48, status_text);
+draw_text(padding, text_y + 96, status_text);
 draw_set_color(c_white);
 
 if (letter_entry_active) {
     draw_set_color(c_yellow);
-    draw_text(padding, text_y + 72, "Letter entry: type A-Z, Esc cancels");
+    draw_text(padding, text_y + 120, "Letter entry: type A-Z, Esc cancels");
     draw_set_color(c_white);
 }

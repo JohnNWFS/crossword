@@ -11,10 +11,5 @@ if (hb.current_template_name != "") {
     default_name = hb.current_template_name;
 }
 
-var template_name = get_string("Template name to save:", default_name);
-if (template_name == "") {
-    hb.set_status("Save cancelled");
-    exit;
-}
-
-hb.save_template(template_name);
+hb.template_dialog_action = "save";
+hb.template_dialog_request_id = get_string_async("Template name to save:", default_name);

@@ -22,6 +22,7 @@
     {"name":"obj_loadButton","order":2,"path":"objects/obj_loadButton/obj_loadButton.yy",},
     {"name":"obj_saveButton","order":1,"path":"objects/obj_saveButton/obj_saveButton.yy",},
     {"name":"obj_step3_repair","order":6,"path":"objects/obj_step3_repair/obj_step3_repair.yy",},
+    {"name":"obj_stopFill","order":7,"path":"objects/obj_stopFill/obj_stopFill.yy",},
     {"name":"obj_testWordList","order":4,"path":"objects/obj_testWordList/obj_testWordList.yy",},
     {"name":"can_place_word","order":4,"path":"scripts/can_place_word/can_place_word.yy",},
     {"name":"fill_grid","order":7,"path":"scripts/fill_grid/fill_grid.yy",},

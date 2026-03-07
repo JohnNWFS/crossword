@@ -11,10 +11,5 @@ if (default_name == "") {
     default_name = "template_" + string(hb.grid_width);
 }
 
-var template_name = get_string("Template name to load:", default_name);
-if (template_name == "") {
-    hb.set_status("Load cancelled");
-    exit;
-}
-
-hb.load_template(template_name);
+hb.template_dialog_action = "load";
+hb.template_dialog_request_id = get_string_async("Template name to load:", default_name);

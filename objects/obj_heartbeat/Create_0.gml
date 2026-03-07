@@ -27,13 +27,25 @@ status_text = "Ready";
 current_template_name = "";
 template_dialog_request_id = -1;
 template_dialog_action = "";
+template_list_overlay_active = false;
+template_list_names = [];
+template_list_box_x = 0;
+template_list_box_y = 0;
+template_list_box_w = 0;
+template_list_box_h = 0;
+template_list_row_h = 22;
+template_list_first_row_y = 0;
+template_list_visible_count = 0;
 
 global.fill_attempt_limit = 250000;
 global.fill_attempt_count = 0;
 global.step15_min_ratio = 0.60;
 global.slot_try_limit = 100;
-global.long_entry_min_len = 7;
+global.long_entry_min_len = 9;
 global.commonness_bias_enabled = true;
+
+long_gate_options = [7, 9, 11, 13, 15];
+long_gate_index = 1;
 
 letter_entry_active = false;
 letter_entry_col = -1;
@@ -50,6 +62,12 @@ ds_grid_clear(grid, "");
 
 set_status = function(_msg) {
     status_text = _msg;
+};
+set_long_gate_index = function(_idx) {
+    if (_idx < 0 || _idx >= array_length(long_gate_options)) return;
+    long_gate_index = _idx;
+    global.long_entry_min_len = long_gate_options[long_gate_index];
+    set_status("Manual long-slot gate set to " + string(global.long_entry_min_len) + "+");
 };
 
 sanitize_template_name = function(_name) {
@@ -71,6 +89,44 @@ sanitize_template_name = function(_name) {
     }
     if (out == "") out = "template";
     return out;
+};
+refresh_template_name_list = function() {
+    var collected = ds_list_create();
+    var found = file_find_first("template_*.ini", fa_archive);
+    while (found != "") {
+        var display_name = "";
+        ini_open(found);
+        display_name = ini_read_string("template", "name", "");
+        ini_close();
+
+        if (display_name == "") {
+            display_name = found;
+            var lower = string_lower(display_name);
+            if (string_copy(lower, 1, 9) == "template_") {
+                display_name = string_delete(display_name, 1, 9);
+            }
+
+            var n = string_length(display_name);
+            if (n >= 4) {
+                var ext = string_lower(string_copy(display_name, n - 3, 4));
+                if (ext == ".ini") {
+                    display_name = string_delete(display_name, n - 3, 4);
+                }
+            }
+        }
+
+        if (display_name != "") ds_list_add(collected, display_name);
+        found = file_find_next();
+    }
+    file_find_close();
+
+    ds_list_sort(collected, true);
+    var count = ds_list_size(collected);
+    template_list_names = array_create(count, "");
+    for (var i = 0; i < count; i++) {
+        template_list_names[i] = collected[| i];
+    }
+    ds_list_destroy(collected);
 };
 
 set_grid_size = function(_size) {
@@ -333,6 +389,8 @@ if (common_file != "") {
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
+
+
 
 
 

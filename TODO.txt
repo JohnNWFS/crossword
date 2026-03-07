@@ -1,0 +1,4 @@
+TODO
+
+- Build a curated long-entry phrase inventory for 11, 13, and 15 characters.
+  Use it as an optional candidate source for future larger-grid fills.

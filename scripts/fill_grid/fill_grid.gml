@@ -318,21 +318,51 @@ function crossword_try_pick_word(slot_data, used_words, first_char, trace_label)
 function crossword_export_word_lists() {
     var slots = crossword_build_slots();
 
+    var grid_name = "unsaved";
+    if (instance_exists(obj_heartbeat)) {
+        var hb = instance_find(obj_heartbeat, 0);
+        if (hb != noone) {
+            if (hb.current_template_name != "") grid_name = hb.current_template_name;
+        }
+    }
+
+    var safe_name = grid_name;
+    if (instance_exists(obj_heartbeat)) {
+        var hb2 = instance_find(obj_heartbeat, 0);
+        if (hb2 != noone) safe_name = hb2.sanitize_template_name(grid_name);
+    }
+
+    var export_name = "export_" + safe_name + "_" + string(current_time) + ".txt";
+    var export_path = working_directory + export_name;
+    var fh = file_text_open_write(export_name);
+
+    file_text_write_string(fh, "=== ACROSS ===");
+    file_text_writeln(fh);
     show_debug_message("=== ACROSS ===");
     for (var i = 0; i < array_length(slots); i++) {
         var slot_data = slots[i];
         if (slot_data.dir != "A") continue;
-        show_debug_message(string(slot_data.num) + ". " + crossword_slot_word(slot_data));
+        var line_a = string(slot_data.num) + ". " + crossword_slot_word(slot_data);
+        file_text_write_string(fh, line_a);
+        file_text_writeln(fh);
+        show_debug_message(line_a);
     }
 
+    file_text_write_string(fh, "=== DOWN ===");
+    file_text_writeln(fh);
     show_debug_message("=== DOWN ===");
     for (var j = 0; j < array_length(slots); j++) {
         var slot_down = slots[j];
         if (slot_down.dir != "D") continue;
-        show_debug_message(string(slot_down.num) + ". " + crossword_slot_word(slot_down));
+        var line_d = string(slot_down.num) + ". " + crossword_slot_word(slot_down);
+        file_text_write_string(fh, line_d);
+        file_text_writeln(fh);
+        show_debug_message(line_d);
     }
-}
 
+    file_text_close(fh);
+    show_debug_message("[Export] Grid='" + grid_name + "' file='" + export_name + "' path='" + export_path + "'");
+}
 function crossword_check_remaining_across_feasibility() {
     var slots = crossword_build_slots();
     var viable = 0;
@@ -1569,6 +1599,8 @@ function crossword_solver_mark_fail_combo(slot_a, slot_b) {
     global.solver_fail_cells = cells;
     global.solver_fail_until = current_time + 500;
 }
+
+
 
 
 

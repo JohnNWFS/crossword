@@ -105,7 +105,7 @@ var text_y = padding + (grid_height * cell_size) + 16;
 var template_label = current_template_name;
 if (template_label == "") template_label = "(unsaved)";
 draw_text(padding, text_y, "Template: " + template_label);
-draw_text(padding, text_y + 24, "Click cells to toggle mirrored blocks");
+draw_text(padding, text_y + 24, "LMB mirror-toggle blocks, RMB single-delete, Shift+LMB type char");
 draw_text(padding, text_y + 48, "Target max attempts: " + string(global.fill_attempt_limit));
 draw_text(padding, text_y + 72, "Attempt count: " + string(global.fill_attempt_count));
 
@@ -130,3 +130,151 @@ if (letter_entry_active) {
     draw_text(padding, text_y + 144, "Cell entry: type any character, Esc cancels");
     draw_set_color(c_white);
 }
+
+var gate_y = text_y + 168;
+var gate_prev_x = padding;
+var gate_next_x = padding + 252;
+
+draw_rectangle(gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24, true);
+draw_text(gate_prev_x + 8, gate_y + 4, "<");
+draw_text(gate_prev_x + 34, gate_y + 4, "Manual long-slot gate: " + string(global.long_entry_min_len) + "+");
+draw_rectangle(gate_next_x, gate_y, gate_next_x + 24, gate_y + 24, true);
+draw_text(gate_next_x + 8, gate_y + 4, ">");
+
+
+var show_thinking = solver_active && (global.fill_attempt_count > 0) && !template_list_overlay_active;
+if (show_thinking) {
+    var cx = room_width * 0.5;
+    var cy = room_height * 0.5;
+    var ring_r = 62;
+    var dot_r = 4;
+    var seg_total = 28;
+    var word = "THINKING";
+    var word_len = string_length(word);
+
+    var cycle_ms = 2700.0;
+    var t_norm = frac(current_time / cycle_ms);
+
+    var phase = 0;
+    var p = 0.0;
+    if (t_norm < 0.45) {
+        phase = 0; // reveal/rotate letters
+        p = t_norm / 0.45;
+    } else if (t_norm < 0.75) {
+        phase = 1; // fill ring segments
+        p = (t_norm - 0.45) / 0.30;
+    } else {
+        phase = 2; // erase ring segments
+        p = (t_norm - 0.75) / 0.25;
+    }
+
+    var spin_deg = (current_time * 0.22) mod 360;
+
+    draw_set_alpha(0.35);
+    draw_set_color(c_dkgray);
+    draw_circle(cx, cy, ring_r, true);
+    draw_set_alpha(1);
+
+    if (phase == 0) {
+        var reveal = max(1, floor(p * word_len));
+        draw_set_color(c_white);
+        draw_set_halign(fa_center);
+        draw_set_valign(fa_middle);
+        for (var i = 0; i < reveal; i++) {
+            var ch = string_char_at(word, i + 1);
+            var a = spin_deg + (i * (360 / word_len));
+            var lx = cx + lengthdir_x(ring_r, a);
+            var ly = cy + lengthdir_y(ring_r, a);
+            draw_text(lx, ly, ch);
+        }
+        draw_set_halign(fa_left);
+        draw_set_valign(fa_top);
+    } else {
+        var keep = seg_total;
+        if (phase == 1) {
+            keep = floor(p * seg_total);
+        } else {
+            keep = seg_total - floor(p * seg_total);
+        }
+
+        draw_set_color(c_aqua);
+        for (var s = 0; s < keep; s++) {
+            var sa = spin_deg + (s * (360 / seg_total));
+            var sx = cx + lengthdir_x(ring_r, sa);
+            var sy = cy + lengthdir_y(ring_r, sa);
+            draw_circle(sx, sy, dot_r, false);
+        }
+
+        draw_set_alpha(0.45);
+        draw_set_halign(fa_center);
+        draw_set_valign(fa_middle);
+        draw_set_color(c_ltgray);
+        draw_text(cx, cy, "thinking");
+        draw_set_halign(fa_left);
+        draw_set_valign(fa_top);
+        draw_set_alpha(1);
+    }
+}
+if (template_list_overlay_active) {
+    var gui_w = display_get_gui_width();
+    var gui_h = display_get_gui_height();
+    if (gui_w <= 0) gui_w = room_width;
+    if (gui_h <= 0) gui_h = room_height;
+
+    draw_set_alpha(0.90);
+    draw_set_color(c_black);
+    draw_rectangle(0, 0, gui_w, gui_h, false);
+    draw_set_alpha(1);
+
+    var box_margin = 48;
+    var box_w = min(520, gui_w - (box_margin * 2));
+    if (box_w < 300) box_w = gui_w - 20;
+
+    var max_rows = floor((gui_h - 180) / template_list_row_h);
+    if (max_rows < 1) max_rows = 1;
+    var total_rows = array_length(template_list_names);
+    template_list_visible_count = min(total_rows, max_rows);
+
+    var box_h = 90 + (template_list_visible_count * template_list_row_h);
+    template_list_box_x = floor((gui_w - box_w) * 0.5);
+    template_list_box_y = floor((gui_h - box_h) * 0.5);
+    template_list_box_w = box_w;
+    template_list_box_h = box_h;
+    template_list_first_row_y = template_list_box_y + 48;
+
+    draw_set_color(c_white);
+    draw_rectangle(template_list_box_x, template_list_box_y, template_list_box_x + box_w, template_list_box_y + box_h, true);
+    draw_text(template_list_box_x + 12, template_list_box_y + 12, "Saved Templates");
+
+    if (total_rows <= 0) {
+        draw_text(template_list_box_x + 12, template_list_first_row_y, "(none found)");
+    } else {
+        for (var t = 0; t < template_list_visible_count; t++) {
+            var row_y = template_list_first_row_y + (t * template_list_row_h);
+            var hovered = point_in_rectangle(mouse_x, mouse_y, template_list_box_x, row_y, template_list_box_x + box_w, row_y + template_list_row_h);
+            if (hovered) {
+                draw_set_alpha(0.25);
+                draw_set_color(c_aqua);
+                draw_rectangle(template_list_box_x + 2, row_y, template_list_box_x + box_w - 2, row_y + template_list_row_h, false);
+                draw_set_alpha(1);
+                draw_set_color(c_white);
+            }
+            draw_text(template_list_box_x + 12, row_y + 2, template_list_names[t]);
+        }
+
+        if (template_list_visible_count < total_rows) {
+            draw_set_color(c_ltgray);
+            draw_text(template_list_box_x + 12, template_list_first_row_y + (template_list_visible_count * template_list_row_h),
+                "...and " + string(total_rows - template_list_visible_count) + " more");
+            draw_set_color(c_white);
+        }
+    }
+
+    draw_set_color(c_ltgray);
+    draw_text(template_list_box_x + 12, template_list_box_y + box_h - 26, "Left click name to load. Click anywhere or Esc to close.");
+    draw_set_color(c_white);
+}
+
+
+
+

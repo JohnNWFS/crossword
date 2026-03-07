@@ -1,12 +1,13 @@
 // Create Event for obj_heartbeat
 
-grid_size_options = [5, 7];
+grid_size_options = [5, 7, 9, 11, 13, 15];
 current_size_index = 0;
 grid_width = grid_size_options[current_size_index];
 grid_height = grid_size_options[current_size_index];
 
 cell_size = 32;
 padding = 64;
+layout_bottom_reserved = 220;
 
 size_prev_x = padding;
 size_prev_y = 24;
@@ -69,6 +70,16 @@ set_long_gate_index = function(_idx) {
     global.long_entry_min_len = long_gate_options[long_gate_index];
     set_status("Manual long-slot gate set to " + string(global.long_entry_min_len) + "+");
 };
+update_cell_size = function() {
+    var available_w = room_width - (padding * 2);
+    var available_h = room_height - padding - layout_bottom_reserved;
+    var max_w = floor(available_w / max(1, grid_width));
+    var max_h = floor(available_h / max(1, grid_height));
+    var target = min(max_w, max_h);
+    target = clamp(target, 18, 32);
+    cell_size = target;
+};
+update_cell_size();
 
 sanitize_template_name = function(_name) {
     var src = string_lower(_name);
@@ -142,6 +153,7 @@ set_grid_size = function(_size) {
     grid_height = _size;
     grid = ds_grid_create(grid_width, grid_height);
     ds_grid_clear(grid, "");
+    update_cell_size();
 
     current_template_name = "";
     letter_entry_active = false;
@@ -389,11 +401,4 @@ if (common_file != "") {
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
-
-
-
-
-
-
-
 

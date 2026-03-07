@@ -114,11 +114,21 @@ save_template = function(_template_name) {
 
     var rows = "";
     for (var row_i_save = 0; row_i_save < grid_height; row_i_save++) {
-        var row = "";
+        var row_tokens = "";
         for (var col_i_save = 0; col_i_save < grid_width; col_i_save++) {
-            row += (grid[# col_i_save, row_i_save] == "INVALID") ? "#" : ".";
+            var cell = grid[# col_i_save, row_i_save];
+            var token = "-2"; // empty
+            if (cell == "INVALID") {
+                token = "-1";
+            } else if (cell != "") {
+                token = string(ord(string_char_at(cell, 1)));
+            }
+
+            row_tokens += token;
+            if (col_i_save < grid_width - 1) row_tokens += ",";
         }
-        rows += row;
+
+        rows += row_tokens;
         if (row_i_save < grid_height - 1) rows += "|";
     }
 
@@ -126,6 +136,7 @@ save_template = function(_template_name) {
     ini_write_string("template", "name", _template_name);
     ini_write_real("template", "width", grid_width);
     ini_write_real("template", "height", grid_height);
+    ini_write_real("grid", "format", 2);
     ini_write_string("grid", "rows", rows);
     ini_close();
 
@@ -147,6 +158,7 @@ load_template = function(_template_name) {
     ini_open(filename);
     var w = floor(ini_read_real("template", "width", 5));
     var h = floor(ini_read_real("template", "height", 5));
+    var fmt = floor(ini_read_real("grid", "format", 1));
     var rows = ini_read_string("grid", "rows", "");
     ini_close();
 
@@ -173,9 +185,26 @@ load_template = function(_template_name) {
     var row_parts = string_split(rows, "|");
     for (var row_i_load = 0; row_i_load < min(array_length(row_parts), grid_height); row_i_load++) {
         var row = row_parts[row_i_load];
-        for (var col_i_load = 0; col_i_load < min(string_length(row), grid_width); col_i_load++) {
-            var ch = string_char_at(row, col_i_load + 1);
-            grid[# col_i_load, row_i_load] = (ch == "#") ? "INVALID" : "";
+
+        // Format 2: numeric tokens (-1 invalid, -2 empty, else ord value).
+        if (fmt >= 2 || string_pos(",", row) > 0) {
+            var col_tokens = string_split(row, ",");
+            for (var col_i_load = 0; col_i_load < min(array_length(col_tokens), grid_width); col_i_load++) {
+                var token_value = floor(real(col_tokens[col_i_load]));
+                if (token_value == -1) {
+                    grid[# col_i_load, row_i_load] = "INVALID";
+                } else if (token_value == -2) {
+                    grid[# col_i_load, row_i_load] = "";
+                } else {
+                    grid[# col_i_load, row_i_load] = chr(token_value);
+                }
+            }
+        } else {
+            // Legacy format: '#' for block, '.' for open/empty.
+            for (var col_i_load = 0; col_i_load < min(string_length(row), grid_width); col_i_load++) {
+                var ch = string_char_at(row, col_i_load + 1);
+                grid[# col_i_load, row_i_load] = (ch == "#") ? "INVALID" : "";
+            }
         }
     }
 
@@ -189,6 +218,10 @@ global.wordList = ds_list_create();
 global.wordLookup = ds_map_create();
 global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
+
+global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
+global.commonWordLookup = ds_map_create();
+global.commonWordRank = ds_map_create();
 
 var candidate_files = [
     "datafiles/wordgamedictionary.com_twl06_download_twl06.txt",
@@ -257,6 +290,48 @@ if (word_file == "") {
     file_text_close(file);
     ds_list_shuffle(global.wordList);
     show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file);
+}
+
+
+var common_files = [
+    "datafiles/common_words.txt",
+    "common_words.txt"
+];
+
+var common_file = "";
+for (var cf = 0; cf < array_length(common_files); cf++) {
+    if (file_exists(common_files[cf])) {
+        common_file = common_files[cf];
+        break;
+    }
+}
+
+if (common_file != "") {
+    var cfile = file_text_open_read(common_file);
+    var rank = 1;
+    while (!file_text_eof(cfile)) {
+        var cword = string_upper(file_text_read_string(cfile));
+        file_text_readln(cfile);
+
+        var cleaned = "";
+        for (var ci = 1; ci <= string_length(cword); ci++) {
+            var cch = string_char_at(cword, ci);
+            if (ord(cch) >= ord("A") && ord(cch) <= ord("Z")) cleaned += cch;
+        }
+
+        if (cleaned == "") continue;
+        if (!ds_map_exists(global.wordLookup, cleaned)) continue;
+
+        if (!ds_map_exists(global.commonWordLookup, cleaned)) {
+            ds_map_add(global.commonWordLookup, cleaned, true);
+            ds_map_add(global.commonWordRank, cleaned, rank);
+            rank++;
+        }
+    }
+    file_text_close(cfile);
+    show_debug_message("[Crossword] Loaded common words: " + string(ds_map_size(global.commonWordLookup)) + " from " + common_file);
+} else {
+    show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
 
 

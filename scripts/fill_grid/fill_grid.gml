@@ -859,6 +859,8 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
 
     var ranked = [];
     var ranked_count = 0;
+    var vocab_mode = global.fill_vocab_mode; // 0 common-first, 1 common-only, 2 full
+    var has_common_map = variable_global_exists("commonWordLookup") && ds_exists(global.commonWordLookup, ds_type_map);
 
     for (var i = 0; i < bucket_count; i++) {
         var w = bucket[| i];
@@ -870,22 +872,37 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         if (!crossword_candidate_passes_letter_rules(w, slot_data)) continue;
         if (!crossword_candidate_passes_prefix_deadend_rules(w, slot_data)) continue;
 
-        if (global.commonness_bias_enabled) {
-            var common_score = crossword_word_commonness_score(w);
-            var ins = ranked_count;
-            while (ins > 0 && ranked[ins - 1].s < common_score) {
-                ins--;
-            }
+        var is_common = has_common_map && ds_map_exists(global.commonWordLookup, w);
+        if (vocab_mode == 1 && !is_common) continue;
 
-            array_resize(ranked, ranked_count + 1);
-            for (var j = ranked_count; j > ins; j--) {
-                ranked[j] = ranked[j - 1];
+        var common_bonus = 0.0;
+        if (vocab_mode == 0) {
+            if (is_common) {
+                var rank_val = 999999;
+                if (ds_map_exists(global.commonWordRank, w)) rank_val = global.commonWordRank[? w];
+                common_bonus = 2000.0 - min(1500.0, rank_val * 0.05);
+            } else {
+                common_bonus = -50.0;
             }
-            ranked[ins] = { w: w, s: common_score };
-            ranked_count++;
-        } else {
-            ranked[ranked_count++] = { w: w, s: 0.0 };
         }
+
+        var base_score = 0.0;
+        if (global.commonness_bias_enabled) {
+            base_score = crossword_word_commonness_score(w);
+        }
+
+        var final_score = base_score + common_bonus;
+        var ins = ranked_count;
+        while (ins > 0 && ranked[ins - 1].s < final_score) {
+            ins--;
+        }
+
+        array_resize(ranked, ranked_count + 1);
+        for (var j = ranked_count; j > ins; j--) {
+            ranked[j] = ranked[j - 1];
+        }
+        ranked[ins] = { w: w, s: final_score };
+        ranked_count++;
     }
 
     out = array_create(ranked_count, "");

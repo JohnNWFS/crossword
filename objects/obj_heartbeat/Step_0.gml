@@ -34,13 +34,13 @@ if (letter_entry_active) {
     } else {
         var typed = keyboard_lastchar;
         if (typed != "") {
-            var ch = string_upper(string_char_at(typed, 1));
-            if (ord(ch) >= ord("A") && ord(ch) <= ord("Z")) {
+            var ch = string_char_at(typed, 1);
+            if (ord(ch) >= 32) {
                 if (letter_entry_col >= 0 && letter_entry_row >= 0
                     && letter_entry_col < grid_width && letter_entry_row < grid_height
                     && grid[# letter_entry_col, letter_entry_row] != "INVALID") {
                     grid[# letter_entry_col, letter_entry_row] = ch;
-                    status_text = "Letter set at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
+                    status_text = "Cell set at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
                 }
                 letter_entry_active = false;
             }
@@ -61,7 +61,7 @@ if (mouse_check_button_pressed(mb_left)
                 letter_entry_active = true;
                 letter_entry_col = clicked_i;
                 letter_entry_row = clicked_j;
-                status_text = "Type letter A-Z (Esc to cancel)";
+                status_text = "Type any character (Esc to cancel)";
             }
         } else {
             var new_value = "INVALID";
@@ -79,3 +79,4 @@ if (mouse_check_button_pressed(mb_left)
         }
     }
 }
+

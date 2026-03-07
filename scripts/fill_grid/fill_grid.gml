@@ -644,6 +644,69 @@ function crossword_step3_repair_failed_across() {
     return improved_any;
 }
 
+function crossword_validate_long_entry_gate(min_len) {
+    var slots = crossword_build_slots();
+    var protected_cells = ds_map_create();
+    var missing_labels = [];
+    var missing_count = 0;
+
+    for (var i = 0; i < array_length(slots); i++) {
+        var slot_data = slots[i];
+        if (slot_data.len < min_len) continue;
+
+        var complete = true;
+        var pattern = crossword_slot_word(slot_data);
+
+        for (var k = 0; k < slot_data.len; k++) {
+            var col_i = slot_data.col + ((slot_data.dir == "A") ? k : 0);
+            var row_i = slot_data.row + ((slot_data.dir == "D") ? k : 0);
+            var key = string(col_i) + "," + string(row_i);
+            if (!ds_map_exists(protected_cells, key)) ds_map_add(protected_cells, key, true);
+
+            var cell = obj_heartbeat.grid[# col_i, row_i];
+            if (cell == "" || cell == "INVALID") complete = false;
+        }
+
+        if (!complete) {
+            missing_labels[missing_count++] = string(slot_data.num) + slot_data.dir + "(" + string(slot_data.len) + ")=" + pattern;
+        }
+    }
+
+    var ok = (missing_count == 0);
+    var msg = "";
+    if (!ok) {
+        msg = "Fill blocked: complete all " + string(min_len) + "+ slots first (" + string(missing_count) + " open).";
+        show_debug_message("[Crossword] " + msg);
+        for (var m = 0; m < min(missing_count, 6); m++) {
+            show_debug_message("[Crossword] unresolved " + missing_labels[m]);
+        }
+    }
+
+    return {
+        ok: ok,
+        message: msg,
+        protected_cells: protected_cells
+    };
+}
+
+function crossword_collect_unresolved_long_slots(min_len) {
+    var slots = crossword_build_slots();
+    var unresolved = [];
+    var count = 0;
+
+    for (var i = 0; i < array_length(slots); i++) {
+        var slot_data = slots[i];
+        if (slot_data.len < min_len) continue;
+
+        var pattern = crossword_slot_word(slot_data);
+        if (string_pos("_", pattern) > 0) {
+            unresolved[count++] = slot_data;
+        }
+    }
+
+    return unresolved;
+}
+
 function crossword_solver_clear_tried_maps(vs) {
     if (is_undefined(vs)) return;
 
@@ -652,32 +715,29 @@ function crossword_solver_clear_tried_maps(vs) {
         if (!is_undefined(tried_maps) && is_array(tried_maps)) {
             for (var i = 0; i < array_length(tried_maps); i++) {
                 var m = tried_maps[i];
-                if (!is_undefined(m) && ds_exists(m, ds_type_map)) {
-                    ds_map_destroy(m);
-                }
+                if (!is_undefined(m) && ds_exists(m, ds_type_map)) ds_map_destroy(m);
             }
         }
     }
 
     if (variable_struct_exists(vs, "fail_signature_counts")) {
         var fail_map = variable_struct_get(vs, "fail_signature_counts");
-        if (!is_undefined(fail_map) && ds_exists(fail_map, ds_type_map)) {
-            ds_map_destroy(fail_map);
-        }
+        if (!is_undefined(fail_map) && ds_exists(fail_map, ds_type_map)) ds_map_destroy(fail_map);
     }
 
     if (variable_struct_exists(vs, "blacklist_map")) {
         var blk_map = variable_struct_get(vs, "blacklist_map");
-        if (!is_undefined(blk_map) && ds_exists(blk_map, ds_type_map)) {
-            ds_map_destroy(blk_map);
-        }
+        if (!is_undefined(blk_map) && ds_exists(blk_map, ds_type_map)) ds_map_destroy(blk_map);
     }
 
     if (variable_struct_exists(vs, "tries_by_slot")) {
         var tries_map = variable_struct_get(vs, "tries_by_slot");
-        if (!is_undefined(tries_map) && ds_exists(tries_map, ds_type_map)) {
-            ds_map_destroy(tries_map);
-        }
+        if (!is_undefined(tries_map) && ds_exists(tries_map, ds_type_map)) ds_map_destroy(tries_map);
+    }
+
+    if (variable_struct_exists(vs, "protected_cells")) {
+        var protected_map = variable_struct_get(vs, "protected_cells");
+        if (!is_undefined(protected_map) && ds_exists(protected_map, ds_type_map)) ds_map_destroy(protected_map);
     }
 }
 
@@ -786,6 +846,7 @@ function crossword_solver_choose_mrv_slot(vs) {
         var pattern = crossword_slot_pattern(slot_data);
 
         if (!crossword_pattern_has_blank(pattern)) {
+            if (slot_data.len >= global.long_entry_min_len) continue;
             var full_word = crossword_slot_word(slot_data);
             if (!ds_map_exists(global.wordLookup, full_word)) {
                 return {
@@ -798,6 +859,19 @@ function crossword_solver_choose_mrv_slot(vs) {
                 };
             }
             continue;
+        }
+
+        if (slot_data.len >= global.long_entry_min_len) {
+            failed_slot = slot_data;
+            failed_pattern = pattern;
+            return {
+                state: "dead",
+                slot_idx: -1,
+                candidates: [],
+                pattern: "",
+                failed_slot: failed_slot,
+                failed_pattern: failed_pattern
+            };
         }
 
         var candidates = crossword_solver_collect_candidates(vs, i, pattern);
@@ -1132,6 +1206,13 @@ function crossword_start_visual_solver() {
         crossword_solver_stop(false);
     }
 
+    var long_gate = crossword_validate_long_entry_gate(global.long_entry_min_len);
+    if (!long_gate.ok) {
+        obj_heartbeat.status_text = long_gate.message;
+        if (ds_exists(long_gate.protected_cells, ds_type_map)) ds_map_destroy(long_gate.protected_cells);
+        return false;
+    }
+
     if (variable_global_exists("usedWords") && ds_exists(global.usedWords, ds_type_map)) {
         ds_map_destroy(global.usedWords);
     }
@@ -1142,7 +1223,8 @@ function crossword_start_visual_solver() {
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
             if (obj_heartbeat.grid[# col_i, row_i] != "INVALID") {
-                obj_heartbeat.grid[# col_i, row_i] = "";
+                var pkey = string(col_i) + "," + string(row_i);
+                if (!ds_map_exists(long_gate.protected_cells, pkey)) obj_heartbeat.grid[# col_i, row_i] = "";
             }
         }
     }
@@ -1163,7 +1245,8 @@ function crossword_start_visual_solver() {
         fail_signature_counts: ds_map_create(),
         blacklist_map: ds_map_create(),
         tries_by_slot: ds_map_create(),
-        root_attempt_start: 0
+        root_attempt_start: 0,
+        protected_cells: long_gate.protected_cells
     };
 
     obj_heartbeat.solver_active = true;

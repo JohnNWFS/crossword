@@ -1,6 +1,6 @@
 // Create Event for obj_heartbeat
 
-grid_size_options = [5, 7, 9, 11, 13, 15];
+grid_size_options = [5, 7];
 current_size_index = 0;
 grid_width = grid_size_options[current_size_index];
 grid_height = grid_size_options[current_size_index];
@@ -32,6 +32,7 @@ global.fill_attempt_limit = 250000;
 global.fill_attempt_count = 0;
 global.step15_min_ratio = 0.60;
 global.slot_try_limit = 100;
+global.long_entry_min_len = 7;
 
 letter_entry_active = false;
 letter_entry_col = -1;
@@ -256,6 +257,8 @@ if (word_file == "") {
     ds_list_shuffle(global.wordList);
     show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file);
 }
+
+
 
 
 

@@ -3,6 +3,26 @@
 var tiny_font = asset_get_index("fnt_tiny");
 var default_font = draw_get_font();
 
+var unresolved_long_slots = [];
+if (variable_global_exists("long_entry_min_len") && grid_width >= global.long_entry_min_len) {
+    unresolved_long_slots = crossword_collect_unresolved_long_slots(global.long_entry_min_len);
+}
+
+var unresolved_cells = ds_map_create();
+var unresolved_starts = ds_map_create();
+for (var u = 0; u < array_length(unresolved_long_slots); u++) {
+    var us = unresolved_long_slots[u];
+    var skey = string(us.col) + "," + string(us.row);
+    if (!ds_map_exists(unresolved_starts, skey)) ds_map_add(unresolved_starts, skey, true);
+
+    for (var k = 0; k < us.len; k++) {
+        var uc = us.col + ((us.dir == "A") ? k : 0);
+        var ur = us.row + ((us.dir == "D") ? k : 0);
+        var ckey = string(uc) + "," + string(ur);
+        if (!ds_map_exists(unresolved_cells, ckey)) ds_map_add(unresolved_cells, ckey, true);
+    }
+}
+
 // Top controls
 draw_rectangle(size_prev_x, size_prev_y, size_prev_x + size_prev_w, size_prev_y + size_prev_h, true);
 draw_text(size_prev_x + 12, size_prev_y + 8, "<");
@@ -36,7 +56,20 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
         if (content == "INVALID") {
             draw_rectangle_color(screen_col, screen_row, screen_col + cell_size, screen_row + cell_size, c_gray, c_gray, c_gray, c_gray, false);
         } else {
-            var num_key = string(col_i) + "," + string(row_i);
+            var cell_key = string(col_i) + "," + string(row_i);
+            if (ds_map_exists(unresolved_cells, cell_key)) {
+                draw_set_alpha(0.28);
+                draw_rectangle_color(screen_col, screen_row, screen_col + cell_size, screen_row + cell_size, c_orange, c_orange, c_orange, c_orange, false);
+                draw_set_alpha(1);
+            }
+
+            if (ds_map_exists(unresolved_starts, cell_key)) {
+                draw_set_alpha(0.7);
+                draw_rectangle_color(screen_col, screen_row, screen_col + cell_size, screen_row + 4, c_aqua, c_aqua, c_aqua, c_aqua, false);
+                draw_set_alpha(1);
+            }
+
+            var num_key = cell_key;
             if (ds_map_exists(slot_numbers, num_key)) {
                 if (tiny_font != -1) {
                     draw_set_font(tiny_font);
@@ -53,6 +86,8 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
 }
 
 ds_map_destroy(slot_numbers);
+ds_map_destroy(unresolved_cells);
+ds_map_destroy(unresolved_starts);
 
 if (current_time < global.solver_fail_until) {
     var pulse = (sin(current_time / 70) > 0) ? c_red : c_maroon;
@@ -78,8 +113,20 @@ draw_set_color(c_lime);
 draw_text(padding, text_y + 96, status_text);
 draw_set_color(c_white);
 
+if (array_length(unresolved_long_slots) > 0) {
+    var label = "Fill blockers (" + string(global.long_entry_min_len) + "+): ";
+    for (var b = 0; b < min(array_length(unresolved_long_slots), 6); b++) {
+        var bs = unresolved_long_slots[b];
+        if (b > 0) label += ", ";
+        label += string(bs.num) + bs.dir;
+    }
+    draw_set_color(c_aqua);
+    draw_text(padding, text_y + 120, label);
+    draw_set_color(c_white);
+}
+
 if (letter_entry_active) {
     draw_set_color(c_yellow);
-    draw_text(padding, text_y + 120, "Letter entry: type A-Z, Esc cancels");
+    draw_text(padding, text_y + 144, "Cell entry: type any character, Esc cancels");
     draw_set_color(c_white);
 }

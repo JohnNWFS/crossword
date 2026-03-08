@@ -39,7 +39,7 @@
   },
   "name":"Crossword",
   "resources":[
-    {"id":{"name":"fnt_small","path":"fonts/fnt_small/fnt_small.yy",},},
+    {"id":{"name":"fnt_tiny","path":"fonts/fnt_tiny/fnt_tiny.yy",},},
     {"id":{"name":"obj_fillGrid","path":"objects/obj_fillGrid/obj_fillGrid.yy",},},
     {"id":{"name":"obj_heartbeat","path":"objects/obj_heartbeat/obj_heartbeat.yy",},},
     {"id":{"name":"obj_loadButton","path":"objects/obj_loadButton/obj_loadButton.yy",},},
@@ -67,3 +67,4 @@
     {"$GMTextureGroup":"","%Name":"Default","autocrop":true,"border":2,"compressFormat":"bz2","customOptions":"","directory":"","groupParent":null,"isScaled":true,"loadType":"default","mipsToGenerate":0,"name":"Default","resourceType":"GMTextureGroup","resourceVersion":"2.0","targets":-1,},
   ],
 }
+

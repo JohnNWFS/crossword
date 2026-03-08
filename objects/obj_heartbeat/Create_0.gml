@@ -45,6 +45,10 @@ global.slot_try_limit = 100;
 global.long_entry_min_len = 9;
 global.commonness_bias_enabled = true;
 
+// RNG config: set to false for normal random behavior (recommended for release).
+global.use_fixed_seed = true;
+global.fixed_seed = 13371;
+
 long_gate_options = [7, 9, 11, 13, 15];
 long_gate_index = 1;
 
@@ -56,6 +60,10 @@ solver_active = false;
 global.visual_solver = undefined;
 global.solver_fail_cells = [];
 global.solver_fail_until = 0;
+global.solver_heartbeat = 0;
+global.solver_work_units = 0;
+global.solver_start_time_ms = 0;
+global.solver_last_progress_log_units = 0;
 
 // Initialize grid
 grid = ds_grid_create(grid_width, grid_height);
@@ -70,6 +78,15 @@ set_long_gate_index = function(_idx) {
     global.long_entry_min_len = long_gate_options[long_gate_index];
     set_status("Manual long-slot gate set to " + string(global.long_entry_min_len) + "+");
 };
+apply_rng_seed = function() {
+    if (global.use_fixed_seed) {
+        random_set_seed(global.fixed_seed);
+        show_debug_message("[RNG] Fixed seed=" + string(global.fixed_seed));
+    } else {
+        randomize();
+        show_debug_message("[RNG] randomize()");
+    }
+};
 update_cell_size = function() {
     var available_w = room_width - (padding * 2);
     var available_h = room_height - padding - layout_bottom_reserved;
@@ -80,6 +97,7 @@ update_cell_size = function() {
     cell_size = target;
 };
 update_cell_size();
+apply_rng_seed();
 
 sanitize_template_name = function(_name) {
     var src = string_lower(_name);
@@ -401,4 +419,12 @@ if (common_file != "") {
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
+
+
+
+
+
+
+
+
 

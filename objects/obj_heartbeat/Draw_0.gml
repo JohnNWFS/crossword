@@ -108,9 +108,11 @@ draw_text(padding, text_y, "Template: " + template_label);
 draw_text(padding, text_y + 24, "LMB mirror-toggle blocks, RMB single-delete, Shift+LMB type char");
 draw_text(padding, text_y + 48, "Target max attempts: " + string(global.fill_attempt_limit));
 draw_text(padding, text_y + 72, "Attempt count: " + string(global.fill_attempt_count));
+draw_text(padding, text_y + 84, "Solver heartbeat: " + string(global.solver_heartbeat));
+draw_text(padding, text_y + 96, "Work units: " + string(global.solver_work_units));
 
 draw_set_color(c_lime);
-draw_text(padding, text_y + 96, status_text);
+draw_text(padding, text_y + 120, status_text);
 draw_set_color(c_white);
 
 if (array_length(unresolved_long_slots) > 0) {
@@ -121,17 +123,17 @@ if (array_length(unresolved_long_slots) > 0) {
         label += string(bs.num) + bs.dir;
     }
     draw_set_color(c_aqua);
-    draw_text(padding, text_y + 120, label);
+    draw_text(padding, text_y + 144, label);
     draw_set_color(c_white);
 }
 
 if (letter_entry_active) {
     draw_set_color(c_yellow);
-    draw_text(padding, text_y + 144, "Cell entry: type any character, Esc cancels");
+    draw_text(padding, text_y + 168, "Cell entry: type any character, Esc cancels");
     draw_set_color(c_white);
 }
 
-var gate_y = text_y + 168;
+var gate_y = text_y + 192;
 var gate_prev_x = padding;
 var gate_next_x = padding + 252;
 
@@ -142,7 +144,7 @@ draw_rectangle(gate_next_x, gate_y, gate_next_x + 24, gate_y + 24, true);
 draw_text(gate_next_x + 8, gate_y + 4, ">");
 
 
-var show_thinking = solver_active && (global.fill_attempt_count > 0) && !template_list_overlay_active;
+var show_thinking = solver_active && !template_list_overlay_active;
 if (show_thinking) {
     var cx = room_width * 0.5;
     var cy = room_height * 0.5;
@@ -277,4 +279,30 @@ if (template_list_overlay_active) {
 
 
 
+
+
+
+
+
+
+if (solver_active && !template_list_overlay_active) {
+    var elapsed_s = 0;
+    if (variable_global_exists("solver_start_time_ms") && global.solver_start_time_ms > 0) {
+        elapsed_s = floor(max(0, current_time - global.solver_start_time_ms) / 1000);
+    }
+
+    var px = room_width - 230;
+    var py = 10;
+    draw_set_alpha(0.35);
+    draw_set_color(c_dkgray);
+    draw_rectangle(px, py, px + 220, py + 74, false);
+    draw_set_alpha(1);
+    draw_set_color(c_yellow);
+    draw_text(px + 8, py + 6, "WORKING");
+    draw_set_color(c_white);
+    draw_text(px + 8, py + 24, "t=" + string(elapsed_s) + "s");
+    draw_text(px + 70, py + 24, "hb=" + string(global.solver_heartbeat));
+    draw_text(px + 8, py + 42, "wu=" + string(global.solver_work_units));
+    draw_text(px + 8, py + 58, "att=" + string(global.fill_attempt_count));
+}
 

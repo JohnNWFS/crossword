@@ -1174,10 +1174,10 @@ function crossword_solver_place_seeded_frame(vs, slot_idx, pattern) {
     ds_map_add(global.usedWords, word, true);
     global.fill_attempt_count++;
 
-    var depth = array_length(vs.stack);
-    array_resize(vs.stack, depth + 1);
+    var stack_depth = array_length(vs.stack);
+    array_resize(vs.stack, stack_depth + 1);
 
-    vs.stack[depth] = {
+    vs.stack[stack_depth] = {
         slot_idx: slot_idx,
         pattern: pattern,
         candidates: candidates,
@@ -1186,7 +1186,7 @@ function crossword_solver_place_seeded_frame(vs, slot_idx, pattern) {
         changes: changes
     };
 
-    if (depth == 0) vs.root_attempt_start = global.fill_attempt_count;
+    if (stack_depth == 0) vs.root_attempt_start = global.fill_attempt_count;
 
     obj_heartbeat.status_text = "Placed " + crossword_solver_slot_label(slot_data) + "=" + word;
     show_debug_message("[Visual] Seed place " + crossword_solver_slot_label(slot_data) + "=" + word

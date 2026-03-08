@@ -306,6 +306,8 @@ global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
 
 global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
+global.allow_phrases = true; // If false, skip long phrase-like entries during dictionary load.
+global.phrase_min_len = 10; // Treat entries >= this length as phrases when allow_phrases is false.
 global.commonWordLookup = ds_map_create();
 global.commonWordRank = ds_map_create();
 
@@ -327,6 +329,8 @@ if (word_file == "") {
 } else {
     var file = file_text_open_read(word_file);
 
+    var skipped_phrases = 0;
+    var skipped_short = 0;
     while (!file_text_eof(file)) {
         var raw_word = string_upper(file_text_read_string(file));
         file_text_readln(file);
@@ -341,6 +345,15 @@ if (word_file == "") {
 
         if (word == "") continue;
 
+        var wlen = string_length(word);
+        if (wlen < 2) {
+            skipped_short++;
+            continue;
+        }
+        if (!global.allow_phrases && wlen >= global.phrase_min_len) {
+            skipped_phrases++;
+            continue;
+        }
         if (!ds_map_exists(global.wordLookup, word)) {
             ds_list_add(global.wordList, word);
             ds_map_add(global.wordLookup, word, true);
@@ -375,7 +388,11 @@ if (word_file == "") {
 
     file_text_close(file);
     ds_list_shuffle(global.wordList);
-    show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file);
+    show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file
+        + " (skipped short=" + string(skipped_short)
+        + " skipped phrases=" + string(skipped_phrases)
+        + " allow_phrases=" + string(global.allow_phrases)
+        + " phrase_min_len=" + string(global.phrase_min_len) + ")");
 }
 
 

@@ -379,6 +379,17 @@ function fill_grid(posX, posY) {
     global.usedWords = ds_map_create();
 
     global.fill_attempt_count = 0;
+    // Treat any manually prefilled letters as immutable (protected).
+    // This preserves user-seeded entries regardless of the long-slot gate.
+    for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
+        for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
+            var v = obj_heartbeat.grid[# col_i, row_i];
+            if (v != "" && v != "INVALID") {
+                var pkey = string(col_i) + "," + string(row_i);
+                if (!ds_map_exists(long_gate.protected_cells, pkey)) ds_map_add(long_gate.protected_cells, pkey, true);
+            }
+        }
+    }
 
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
@@ -1601,6 +1612,17 @@ function crossword_start_visual_solver() {
     global.usedWords = ds_map_create();
 
     global.fill_attempt_count = 0;
+    // Treat any manually prefilled letters as immutable (protected).
+    // This preserves user-seeded entries regardless of the long-slot gate.
+    for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
+        for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
+            var v = obj_heartbeat.grid[# col_i, row_i];
+            if (v != "" && v != "INVALID") {
+                var pkey = string(col_i) + "," + string(row_i);
+                if (!ds_map_exists(long_gate.protected_cells, pkey)) ds_map_add(long_gate.protected_cells, pkey, true);
+            }
+        }
+    }
 
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {

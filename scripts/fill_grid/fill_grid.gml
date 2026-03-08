@@ -1063,75 +1063,188 @@ function crossword_solver_choose_mrv_slot(vs) {
 }
 
 
-function crossword_solver_try_place_starter(vs) {
-    // Prefer the 1A slot if eligible; otherwise pick the first eligible Across slot.
-    // "Eligible" = has blanks and is shorter than the manual long-entry gate.
-    var starter_idx = -1;
+function crossword_solver_build_slot_degrees(slots) {
+    // Degree = how many crossings the slot has (sum of other-slot presence per cell).
+    var cell_counts = ds_map_create();
 
-    for (var i = 0; i < array_length(vs.slots); i++) {
-        var s = vs.slots[i];
-        if (s.dir != "A") continue;
-        if (s.num != 1) continue;
-        if (s.len >= global.long_entry_min_len) continue;
-        var p = crossword_slot_pattern(s);
-        if (!crossword_pattern_has_blank(p)) continue;
-        starter_idx = i;
-        break;
-    }
-
-    if (starter_idx < 0) {
-        for (var j = 0; j < array_length(vs.slots); j++) {
-            var a = vs.slots[j];
-            if (a.dir != "A") continue;
-            if (a.len >= global.long_entry_min_len) continue;
-            var p2 = crossword_slot_pattern(a);
-            if (!crossword_pattern_has_blank(p2)) continue;
-            starter_idx = j;
-            break;
+    for (var i = 0; i < array_length(slots); i++) {
+        var s = slots[i];
+        for (var k = 0; k < s.len; k++) {
+            var c = s.col + ((s.dir == "A") ? k : 0);
+            var r = s.row + ((s.dir == "D") ? k : 0);
+            var key = string(c) + "," + string(r);
+            if (ds_map_exists(cell_counts, key)) {
+                ds_map_replace(cell_counts, key, cell_counts[? key] + 1);
+            } else {
+                ds_map_add(cell_counts, key, 1);
+            }
         }
     }
 
-    if (starter_idx < 0) return false;
-
-    var slot_data = vs.slots[starter_idx];
-    var pattern = crossword_slot_pattern(slot_data);
-    var candidates = crossword_solver_collect_candidates(vs, starter_idx, pattern);
-    if (array_length(candidates) <= 0) {
-        show_debug_message("[Visual] Starter: no candidates for " + crossword_solver_slot_label(slot_data) + " pattern=" + pattern);
-        return false;
+    var degrees = array_create(array_length(slots), 0);
+    for (var j = 0; j < array_length(slots); j++) {
+        var s2 = slots[j];
+        var deg = 0;
+        for (var k2 = 0; k2 < s2.len; k2++) {
+            var c2 = s2.col + ((s2.dir == "A") ? k2 : 0);
+            var r2 = s2.row + ((s2.dir == "D") ? k2 : 0);
+            var key2 = string(c2) + "," + string(r2);
+            if (ds_map_exists(cell_counts, key2)) {
+                var n = cell_counts[? key2];
+                if (n > 1) deg += (n - 1);
+            }
+        }
+        degrees[j] = deg;
     }
 
-    var chosen_idx = irandom(array_length(candidates) - 1);
-    // Swap chosen starter to index 0 so backtracking explores all candidates normally.
-    if (chosen_idx != 0) {
-        var tmp = candidates[0];
-        candidates[0] = candidates[chosen_idx];
-        candidates[chosen_idx] = tmp;
-        chosen_idx = 0;
+    ds_map_destroy(cell_counts);
+    return degrees;
+}
+
+function crossword_solver_seed_target_for_size(sz) {
+    if (sz >= 15) return 6;
+    if (sz >= 13) return 5;
+    if (sz >= 11) return 4;
+    return 1;
+}
+
+function crossword_solver_choose_seed_slot(vs) {
+    var best_slot_idx = -1;
+    var best_count = 1000000000;
+    var best_deg = -1;
+    var best_len = -1;
+    var best_pattern = "";
+
+    for (var i = 0; i < array_length(vs.slots); i++) {
+        global.solver_work_units++;
+        crossword_solver_maybe_log_progress();
+
+        var slot_data = vs.slots[i];
+        if (slot_data.len >= global.long_entry_min_len) continue;
+
+        var pattern = crossword_slot_pattern(slot_data);
+        if (!crossword_pattern_has_blank(pattern)) continue;
+
+        // Quick feasibility count (early-exit).
+        var limit = min(best_count - 1, 2000);
+        if (limit < 1) limit = 1;
+        var c = crossword_solver_count_candidates_limit(vs, slot_data, pattern, limit);
+        if (c <= 0) continue;
+
+        var deg = 0;
+        if (!is_undefined(vs.slot_degree) && is_array(vs.slot_degree) && i < array_length(vs.slot_degree)) {
+            deg = vs.slot_degree[i];
+        }
+
+        // Primary: minimum remaining values; tie-break: higher degree, then longer.
+        if (c < best_count || (c == best_count && deg > best_deg) || (c == best_count && deg == best_deg && slot_data.len > best_len)) {
+            best_count = c;
+            best_deg = deg;
+            best_len = slot_data.len;
+            best_slot_idx = i;
+            best_pattern = pattern;
+        }
     }
+
+    if (best_slot_idx < 0) {
+        return { ok: false };
+    }
+
+    return {
+        ok: true,
+        slot_idx: best_slot_idx,
+        pattern: best_pattern,
+        count: best_count
+    };
+}
+
+function crossword_solver_place_seeded_frame(vs, slot_idx, pattern) {
+    var candidates = crossword_solver_collect_candidates(vs, slot_idx, pattern);
+    var n = array_length(candidates);
+    if (n <= 0) return false;
+
+    // Avoid deterministic top-1 picks: choose randomly from the top-N ranked candidates.
+    var top_n = min(n, 50);
+    var chosen_idx = irandom(top_n - 1);
+
     var word = candidates[chosen_idx];
+    var slot_data = vs.slots[slot_idx];
 
     var changes = crossword_solver_place_word_with_changes(slot_data, word);
     ds_map_add(global.usedWords, word, true);
     global.fill_attempt_count++;
 
-    var frame = {
-        slot_idx: starter_idx,
+    var depth = array_length(vs.stack);
+    array_resize(vs.stack, depth + 1);
+
+    vs.stack[depth] = {
+        slot_idx: slot_idx,
         pattern: pattern,
         candidates: candidates,
         next_candidate: chosen_idx,
         placed_word: word,
         changes: changes
     };
-    vs.stack[0] = frame;
-    vs.root_attempt_start = global.fill_attempt_count;
 
-    obj_heartbeat.status_text = "Starter " + crossword_solver_slot_label(slot_data) + "=" + word;
-    show_debug_message("[Visual] Starter " + crossword_solver_slot_label(slot_data) + "=" + word + " pattern=" + pattern
-        + " candidate " + string(chosen_idx + 1) + "/" + string(array_length(candidates)));
+    if (depth == 0) vs.root_attempt_start = global.fill_attempt_count;
+
+    obj_heartbeat.status_text = "Placed " + crossword_solver_slot_label(slot_data) + "=" + word;
+    show_debug_message("[Visual] Seed place " + crossword_solver_slot_label(slot_data) + "=" + word
+        + " pattern=" + pattern + " pick=" + string(chosen_idx + 1) + "/" + string(n));
+
     return true;
 }
 
+function crossword_solver_restart_search(vs, reason) {
+    // Keep protected_cells; clear everything else and start again with fresh seeds.
+    show_debug_message("[Visual] Restart search (" + reason + ")");
+
+    // Clear placed words
+    if (array_length(vs.stack) > 0) {
+        crossword_solver_unwind_to_depth(vs, -1);
+    }
+    vs.stack = [];
+
+    // Reset grid to blanks except protected cells.
+    for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
+        for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
+            if (obj_heartbeat.grid[# col_i, row_i] != "INVALID") {
+                var pkey = string(col_i) + "," + string(row_i);
+                if (is_undefined(vs.protected_cells) || !ds_exists(vs.protected_cells, ds_type_map) || !ds_map_exists(vs.protected_cells, pkey)) {
+                    obj_heartbeat.grid[# col_i, row_i] = "";
+                }
+            }
+        }
+    }
+
+    // Reset used words.
+    if (ds_exists(global.usedWords, ds_type_map)) ds_map_destroy(global.usedWords);
+    global.usedWords = ds_map_create();
+
+    // Reset bookkeeping maps.
+    if (ds_exists(vs.fail_signature_counts, ds_type_map)) { ds_map_destroy(vs.fail_signature_counts); }
+    if (ds_exists(vs.blacklist_map, ds_type_map)) { ds_map_destroy(vs.blacklist_map); }
+    if (ds_exists(vs.tries_by_slot, ds_type_map)) { ds_map_destroy(vs.tries_by_slot); }
+    vs.fail_signature_counts = ds_map_create();
+    vs.blacklist_map = ds_map_create();
+    vs.tries_by_slot = ds_map_create();
+
+    vs.pending_remove = false;
+    vs.pending_frame_idx = -1;
+    vs.wait_until = 0;
+
+    vs.need_starter = true;
+    vs.seed_remaining = crossword_solver_seed_target_for_size(obj_heartbeat.grid_width);
+
+    if (!variable_global_exists("solver_restarts")) global.solver_restarts = 0;
+    global.solver_restarts++;
+}
+
+function crossword_solver_try_place_starter(vs) {
+    var choice = crossword_solver_choose_seed_slot(vs);
+    if (!choice.ok) return false;
+    return crossword_solver_place_seeded_frame(vs, choice.slot_idx, choice.pattern);
+}
 function crossword_solver_push_frame(vs, choice) {
     var frame = {
         slot_idx: choice.slot_idx,
@@ -1276,11 +1389,23 @@ function crossword_solver_tick() {
         return;
     }
 
-    // Large grids: place a starter entry first to provide immediate visual feedback
-    // and avoid a long first-tick MRV scan.
+    // Seed a handful of entries up front on bigger grids so the search is anchored
+    // and the user sees immediate progress.
     if (!is_undefined(vs.need_starter) && vs.need_starter) {
         vs.need_starter = false;
-        crossword_solver_try_place_starter(vs);
+        if (is_undefined(vs.seed_remaining)) {
+            vs.seed_remaining = crossword_solver_seed_target_for_size(obj_heartbeat.grid_width);
+        }
+    }
+
+    if (!is_undefined(vs.seed_remaining) && vs.seed_remaining > 0) {
+        var placed = crossword_solver_try_place_starter(vs);
+        if (placed) {
+            vs.seed_remaining--;
+        } else {
+            // If we cannot place any seed, stop seeding and fall back to normal MRV.
+            vs.seed_remaining = 0;
+        }
         global.visual_solver = vs;
         return;
     }
@@ -1363,6 +1488,13 @@ function crossword_solver_tick() {
         array_resize(vs.stack, top_idx);
 
         if (array_length(vs.stack) <= 0) {
+            if (obj_heartbeat.grid_width >= 11) {
+                obj_heartbeat.status_text = "Restarting search (exhausted root)";
+                crossword_solver_restart_search(vs, "exhausted-root");
+                global.visual_solver = vs;
+                return;
+            }
+
             obj_heartbeat.status_text = "Visual solver failed: exhausted root slot";
             show_debug_message("[Visual] Exhausted root slot; no fill found.");
             crossword_solver_stop(false);
@@ -1497,6 +1629,8 @@ function crossword_start_visual_solver() {
         tries_by_slot: ds_map_create(),
         root_attempt_start: 0,
         need_starter: true,
+        seed_remaining: crossword_solver_seed_target_for_size(obj_heartbeat.grid_width),
+        slot_degree: crossword_solver_build_slot_degrees(slots),
         protected_cells: long_gate.protected_cells
     };
 

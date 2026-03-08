@@ -1064,21 +1064,30 @@ function crossword_solver_choose_mrv_slot(vs) {
 
 
 function crossword_solver_try_place_starter(vs) {
-    // Prefer the 1A slot if present; otherwise first Across slot.
+    // Prefer the 1A slot if eligible; otherwise pick the first eligible Across slot.
+    // "Eligible" = has blanks and is shorter than the manual long-entry gate.
     var starter_idx = -1;
+
     for (var i = 0; i < array_length(vs.slots); i++) {
         var s = vs.slots[i];
-        if (s.dir == "A" && s.num == 1) {
-            starter_idx = i;
-            break;
-        }
+        if (s.dir != "A") continue;
+        if (s.num != 1) continue;
+        if (s.len >= global.long_entry_min_len) continue;
+        var p = crossword_slot_pattern(s);
+        if (!crossword_pattern_has_blank(p)) continue;
+        starter_idx = i;
+        break;
     }
+
     if (starter_idx < 0) {
         for (var j = 0; j < array_length(vs.slots); j++) {
-            if (vs.slots[j].dir == "A") {
-                starter_idx = j;
-                break;
-            }
+            var a = vs.slots[j];
+            if (a.dir != "A") continue;
+            if (a.len >= global.long_entry_min_len) continue;
+            var p2 = crossword_slot_pattern(a);
+            if (!crossword_pattern_has_blank(p2)) continue;
+            starter_idx = j;
+            break;
         }
     }
 
@@ -1086,9 +1095,6 @@ function crossword_solver_try_place_starter(vs) {
 
     var slot_data = vs.slots[starter_idx];
     var pattern = crossword_slot_pattern(slot_data);
-    if (!crossword_pattern_has_blank(pattern)) return false;
-    if (slot_data.len >= global.long_entry_min_len) return false;
-
     var candidates = crossword_solver_collect_candidates(vs, starter_idx, pattern);
     if (array_length(candidates) <= 0) {
         show_debug_message("[Visual] Starter: no candidates for " + crossword_solver_slot_label(slot_data) + " pattern=" + pattern);
@@ -1343,7 +1349,11 @@ function crossword_solver_tick() {
     var tries_key = string(top.slot_idx);
     if (ds_map_exists(vs.tries_by_slot, tries_key)) tries_so_far = vs.tries_by_slot[? tries_key];
 
-    if (top.next_candidate >= array_length(top.candidates) || tries_so_far >= global.slot_try_limit) {
+    // Never cap the root slot by slot_try_limit; let it run as long as needed.
+    var enforce_try_limit = (top_idx != 0);
+
+
+    if (top.next_candidate >= array_length(top.candidates) || (enforce_try_limit && tries_so_far >= global.slot_try_limit)) {
         var exhausted_slot = vs.slots[top.slot_idx];
         show_debug_message("[Visual] Exhausted " + crossword_solver_slot_label(exhausted_slot)
             + " pattern=" + top.pattern
@@ -1431,6 +1441,17 @@ function crossword_start_visual_solver() {
     if (instance_exists(obj_heartbeat) && !is_undefined(obj_heartbeat.apply_rng_seed)) {
         obj_heartbeat.apply_rng_seed();
     }
+
+    // Large grids can legitimately take a very long time. Raise limits so it can run overnight.
+    if (obj_heartbeat.grid_width >= 11) {
+        global.fill_attempt_limit = max(global.fill_attempt_limit, 10000000);
+        global.slot_try_limit = max(global.slot_try_limit, 50000);
+        if (variable_global_exists("root_word_attempt_window")) {
+            global.root_word_attempt_window = max(global.root_word_attempt_window, 5000);
+        } else {
+            global.root_word_attempt_window = 5000;
+        }
+    }
     if (obj_heartbeat.solver_active) {
         crossword_solver_stop(false);
     }
@@ -1475,7 +1496,7 @@ function crossword_start_visual_solver() {
         blacklist_map: ds_map_create(),
         tries_by_slot: ds_map_create(),
         root_attempt_start: 0,
-        need_starter: (obj_heartbeat.grid_width >= 11),
+        need_starter: true,
         protected_cells: long_gate.protected_cells
     };
 
@@ -1725,6 +1746,8 @@ function crossword_solver_mark_fail_combo(slot_a, slot_b) {
     global.solver_fail_cells = cells;
     global.solver_fail_until = current_time + 500;
 }
+
+
 
 
 

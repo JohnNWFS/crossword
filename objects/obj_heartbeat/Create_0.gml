@@ -46,7 +46,7 @@ global.long_entry_min_len = 9;
 global.commonness_bias_enabled = true;
 
 // RNG config: set to false for normal random behavior (recommended for release).
-global.use_fixed_seed = true;
+global.use_fixed_seed = false;
 global.fixed_seed = 13371;
 
 long_gate_options = [7, 9, 11, 13, 15];
@@ -419,6 +419,7 @@ if (common_file != "") {
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
+
 
 
 

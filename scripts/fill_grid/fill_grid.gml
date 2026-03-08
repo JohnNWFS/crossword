@@ -1701,6 +1701,9 @@ function crossword_start_visual_solver() {
         }
     }
 
+
+    // Reset non-block, non-protected cells to blank so the solver starts from a clean slate.
+    // Any existing letters were added to protected_cells above and will be preserved.
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
             if (roi_on) {
@@ -1708,7 +1711,9 @@ function crossword_start_visual_solver() {
             }
             if (obj_heartbeat.grid[# col_i, row_i] != "INVALID") {
                 var pkey = string(col_i) + "," + string(row_i);
-                if (!ds_map_exists(long_gate.protected_cells, pkey)) obj_heartbeat.grid[# col_i, row_i] = "";
+                if (!ds_map_exists(long_gate.protected_cells, pkey)) {
+                    obj_heartbeat.grid[# col_i, row_i] = "";
+                }
             }
         }
     }

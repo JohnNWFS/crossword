@@ -86,6 +86,18 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
 }
 
 ds_map_destroy(slot_numbers);
+// ROI highlight (chunk fill)
+if (variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled) {
+    var rx = clamp(global.roi_x, 0, max(0, grid_width - global.roi_w));
+    var ry = clamp(global.roi_y, 0, max(0, grid_height - global.roi_h));
+    draw_set_alpha(0.45);
+    draw_set_color(c_yellow);
+    var sx = padding + (rx * cell_size);
+    var sy = padding + (ry * cell_size);
+    draw_rectangle(sx, sy, sx + (global.roi_w * cell_size), sy + (global.roi_h * cell_size), true);
+    draw_set_alpha(1);
+    draw_set_color(c_white);
+}
 ds_map_destroy(unresolved_cells);
 ds_map_destroy(unresolved_starts);
 
@@ -285,7 +297,41 @@ if (template_list_overlay_active) {
 
 
 
-if (solver_active && !template_list_overlay_active) {
+
+// Solver options panel (top-right)
+var opt_x = room_width - 230;
+var opt_y = 92;
+var opt_w = 220;
+var opt_h = 22;
+
+draw_set_alpha(0.35);
+draw_set_color(c_dkgray);
+draw_rectangle(opt_x, opt_y, opt_x + opt_w, opt_y + 126, false);
+draw_set_alpha(1);
+
+var mode = 0;
+if (variable_global_exists("solver_mode")) mode = global.solver_mode;
+var brute_left = 0;
+if (variable_global_exists("brute_burst_remaining")) brute_left = global.brute_burst_remaining;
+
+var m0 = (mode == 0) ? "> Normal" : "  Normal";
+var m1 = (mode == 1) ? "> Relaxed" : "  Relaxed";
+var m2 = (mode == 2) ? "> Brute" : "  Brute";
+
+draw_set_color(c_white);
+draw_text(opt_x + 8, opt_y + 4, "Solver Method");
+draw_text(opt_x + 8, opt_y + 4 + 22, m0);
+draw_text(opt_x + 8, opt_y + 4 + 48, m1);
+draw_text(opt_x + 8, opt_y + 4 + 74, m2);
+
+draw_set_color(c_ltgray);
+draw_text(opt_x + 8, opt_y + 4 + 100, "Brute burst: " + string(brute_left));
+
+var roi_on = variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled;
+var roi_lbl = roi_on ? "ROI 5x5: ON" : "ROI 5x5: OFF";
+draw_set_color(c_yellow);
+draw_text(opt_x + 120, opt_y + 4 + 100, roi_lbl);
+draw_set_color(c_white);if (solver_active && !template_list_overlay_active) {
     var elapsed_s = 0;
     if (variable_global_exists("solver_start_time_ms") && global.solver_start_time_ms > 0) {
         elapsed_s = floor(max(0, current_time - global.solver_start_time_ms) / 1000);

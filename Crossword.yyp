@@ -31,6 +31,7 @@
     {"$GMIncludedFile":"","%Name":"common_words.txt","CopyToMask":-1,"filePath":"datafiles","name":"common_words.txt","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"count_1w.txt","CopyToMask":-1,"filePath":"datafiles","name":"count_1w.txt","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"wordgamedictionary.com_twl06_download_twl06.txt","CopyToMask":-1,"filePath":"datafiles","name":"wordgamedictionary.com_twl06_download_twl06.txt","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"wordgamedictionary.com_twl06_download_twl06.txt.bak_20260308_154704","CopyToMask":-1,"filePath":"datafiles","name":"wordgamedictionary.com_twl06_download_twl06.txt.bak_20260308_154704","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
   ],
   "isEcma":false,
   "LibraryEmitters":[],

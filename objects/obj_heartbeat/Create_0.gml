@@ -45,6 +45,16 @@ global.slot_try_limit = 100;
 global.long_entry_min_len = 9;
 global.commonness_bias_enabled = true;
 
+// Solver method controls (can be changed while running)
+global.solver_mode = 0; // 0=Normal, 1=Relaxed, 2=Brute
+global.brute_burst_remaining = 0;
+
+// ROI (chunk fill) controls: Alt+LMB to set top-left of a 5x5 region
+global.roi_fill_enabled = false;
+global.roi_x = 0;
+global.roi_y = 0;
+global.roi_w = 5;
+global.roi_h = 5;
 // RNG config: set to false for normal random behavior (recommended for release).
 global.use_fixed_seed = false;
 global.fixed_seed = 13371;

@@ -36,6 +36,55 @@ if (template_list_overlay_active) {
     exit;
 }
 
+
+if (candidate_overlay_active) {
+    if (keyboard_check_pressed(vk_escape)) {
+        candidate_overlay_active = false;
+        candidate_list_words = [];
+        candidate_slot_data = undefined;
+        set_status("Picker closed");
+        exit;
+    }
+
+    var click_left = mouse_check_button_pressed(mb_left);
+    var click_right = mouse_check_button_pressed(mb_right);
+    var click_middle = mouse_check_button_pressed(mb_middle);
+    if (click_left || click_right || click_middle) {
+        if (click_left
+            && point_in_rectangle(mouse_x, mouse_y, candidate_list_box_x, candidate_list_first_row_y,
+                candidate_list_box_x + candidate_list_box_w, candidate_list_box_y + candidate_list_box_h)
+            && array_length(candidate_list_words) > 0) {
+            var idx = floor((mouse_y - candidate_list_first_row_y) / candidate_list_row_h);
+            if (idx >= 0 && idx < candidate_list_visible_count) {
+                var chosen = candidate_list_words[idx];
+                var sd = candidate_slot_data;
+                if (!is_undefined(sd) && chosen != "") {
+                    for (var k = 0; k < sd.len; k++) {
+                        var col_i = sd.col + ((sd.dir == "A") ? k : 0);
+                        var row_i = sd.row + ((sd.dir == "D") ? k : 0);
+                        if (obj_heartbeat.grid[# col_i, row_i] != "INVALID") {
+                            obj_heartbeat.grid[# col_i, row_i] = string_char_at(chosen, k + 1);
+                        }
+                    }
+                    set_status("Applied " + string(sd.num) + sd.dir + "=" + chosen);
+                }
+                candidate_overlay_active = false;
+                candidate_list_words = [];
+                candidate_slot_data = undefined;
+                exit;
+            }
+        }
+
+        candidate_overlay_active = false;
+        candidate_list_words = [];
+        candidate_slot_data = undefined;
+        set_status("Picker closed");
+        exit;
+    }
+
+    exit;
+}
+
 // Detect small-screen touch layout (HTML/Android/iOS). Keeps desktop behavior unchanged.
 var is_mobile_os = (os_type == os_android) || (os_type == os_ios) || (os_type == os_browser);
 if (is_mobile_os) {
@@ -56,6 +105,38 @@ if (os_type == os_browser) {
     display_set_gui_maximize();
 }
 
+// Command: press ? then A or D, then click a cell to open the Close Possibilities picker
+if (!solver_active && !letter_entry_active && !template_list_overlay_active && !candidate_overlay_active) {
+    // ? on US keyboard is Shift+/
+    if (keyboard_check_pressed(ord("/")) && keyboard_check(vk_shift)) {
+        cmd_stage = 1;
+        global.cmd_mode = 0;
+        set_status("Command: type A or D");
+    }
+
+    if (cmd_stage == 1) {
+        if (keyboard_check_pressed(vk_escape)) {
+            cmd_stage = 0;
+            set_status("Command cancelled");
+        } else if (keyboard_check_pressed(ord("A"))) {
+            cmd_stage = 2;
+            global.cmd_mode = 1;
+            set_status("Close possibilities armed: ?A (click a cell)");
+        } else if (keyboard_check_pressed(ord("D"))) {
+            cmd_stage = 2;
+            global.cmd_mode = 2;
+            set_status("Close possibilities armed: ?D (click a cell)");
+        }
+    } else if (cmd_stage == 2) {
+        if (keyboard_check_pressed(vk_escape)) {
+            cmd_stage = 0;
+            global.cmd_mode = 0;
+            set_status("Command cancelled");
+        }
+    }
+}
+
+
 // Solver options panel (top-right)
 // Normal: all heuristics
 // Relaxed: fewer heuristics
@@ -64,7 +145,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 308 : 282;
+var opt_panel_h = global.mobile_layout ? 334 : 308;
 var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
@@ -135,7 +216,7 @@ if (mouse_check_button_pressed(mb_left)) {
 
     // Mobile-only: toggle between block editing and letter entry (Shift is not available on touch)
     if (global.mobile_layout
-        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 260, opt_x + opt_w, opt_row0_y + 260 + opt_h)) {
+        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 286, opt_x + opt_w, opt_row0_y + 286 + opt_h)) {
         global.edit_mode = 1 - global.edit_mode;
         status_text = (global.edit_mode == 1) ? "Edit mode: Letters" : "Edit mode: Blocks";
         exit;
@@ -152,6 +233,14 @@ if (mouse_check_button_pressed(mb_left)) {
     // Feasibility check: scan all slots and confirm each has a dictionary match (or at least one candidate).
     if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 234, opt_x + opt_w, opt_row0_y + 234 + opt_h)) {
         crossword_check_grid_feasibility();
+        exit;
+    }
+
+    // Close possibilities command (cycles OFF -> ?A -> ?D). Then click a cell to open a picker.
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 260, opt_x + opt_w, opt_row0_y + 260 + opt_h)) {
+        global.cmd_mode = (global.cmd_mode + 1) mod 3;
+        cmd_stage = 0;
+        status_text = (global.cmd_mode == 0) ? "Close possibilities: OFF" : ((global.cmd_mode == 1) ? "Close possibilities: ?A" : "Close possibilities: ?D");
         exit;
     }
     // Manual long-slot gate controls (moved to right column under solver panel)
@@ -232,6 +321,39 @@ if (mouse_check_button_pressed(mb_left)
     var clicked_j = floor((mouse_y - padding) / cell_size);
 
     if (clicked_i >= 0 && clicked_i < grid_width && clicked_j >= 0 && clicked_j < grid_height) {
+
+        // Close possibilities one-shot command: open picker instead of toggling blocks/letters
+        if (variable_global_exists("cmd_mode") && global.cmd_mode != 0) {
+            var want_dir = (global.cmd_mode == 1) ? "A" : "D";
+            var slots = crossword_build_slots();
+            var found = undefined;
+            for (var si = 0; si < array_length(slots); si++) {
+                var sd = slots[si];
+                if (sd.dir != want_dir) continue;
+                if (want_dir == "A") {
+                    if (sd.row == clicked_j && clicked_i >= sd.col && clicked_i < sd.col + sd.len) { found = sd; break; }
+                } else {
+                    if (sd.col == clicked_i && clicked_j >= sd.row && clicked_j < sd.row + sd.len) { found = sd; break; }
+                }
+            }
+
+            if (is_undefined(found)) {
+                set_status("No slot found at that cell");
+            } else {
+                var res = crossword_collect_close_possibilities(found, 10);
+                candidate_slot_data = found;
+                candidate_slot_pattern = res.pattern;
+                candidate_list_words = res.words;
+                candidate_overlay_active = (array_length(candidate_list_words) > 0);
+                if (!candidate_overlay_active) {
+                    set_status("No suggestions for " + string(found.num) + found.dir + " pattern=" + res.pattern);
+                }
+            }
+
+            global.cmd_mode = 0;
+            cmd_stage = 0;
+            exit;
+        }
         if (keyboard_check(vk_alt)) {
             global.roi_fill_enabled = true;
             if (!variable_global_exists("roi_default_size")) global.roi_default_size = 5;

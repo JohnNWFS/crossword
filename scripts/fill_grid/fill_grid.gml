@@ -504,6 +504,69 @@ function crossword_check_grid_feasibility() {
     return false;
 }
 
+function crossword_collect_close_possibilities(slot_data, max_out) {
+    var pattern = crossword_slot_word(slot_data);
+    var fixed_letters = "";
+    var fixed_count = 0;
+    for (var i = 1; i <= string_length(pattern); i++) {
+        var ch = string_char_at(pattern, i);
+        if (ch != "_") { fixed_letters += ch; fixed_count++; }
+    }
+
+    var min_shared = 1;
+    if (fixed_count >= 3) min_shared = 2;
+
+    var key_len = string(slot_data.len);
+    if (!variable_global_exists("wordsByLength") || !ds_exists(global.wordsByLength, ds_type_map)) {
+        return { pattern: pattern, words: [] };
+    }
+    if (!ds_map_exists(global.wordsByLength, key_len)) {
+        return { pattern: pattern, words: [] };
+    }
+    var bucket = global.wordsByLength[? key_len];
+    var bucket_count = ds_list_size(bucket);
+
+    var strict = [];
+    var loose = [];
+    var s_count = 0;
+    var l_count = 0;
+    var collect_cap = 240; // keep it snappy; we only need a few suggestions
+
+    for (var b = 0; b < bucket_count; b++) {
+        var w = bucket[| b];
+        // strict: matches the exact known letters by position
+        if (crossword_word_matches_pattern(w, pattern)) {
+            strict[s_count++] = w;
+        } else if (fixed_count > 0) {
+            // loose: shares at least min_shared letters anywhere with the existing letters in this slot
+            var shared = 0;
+            for (var k = 1; k <= string_length(fixed_letters); k++) {
+                var fl = string_char_at(fixed_letters, k);
+                if (string_pos(fl, w) > 0) shared++;
+                if (shared >= min_shared) break;
+            }
+            if (shared >= min_shared) {
+                loose[l_count++] = w;
+            }
+        }
+
+        if (s_count + l_count >= collect_cap) break;
+    }
+
+    if (array_length(strict) > 1) array_shuffle(strict);
+    if (array_length(loose) > 1) array_shuffle(loose);
+
+    var out = [];
+    var out_count = 0;
+    var take_strict = min(max_out, array_length(strict));
+    for (var i = 0; i < take_strict; i++) out[out_count++] = strict[i];
+    var remaining = max_out - out_count;
+    var take_loose = min(remaining, array_length(loose));
+    for (var j = 0; j < take_loose; j++) out[out_count++] = loose[j];
+
+    return { pattern: pattern, words: out };
+}
+
 function fill_grid(posX, posY) {
     if (variable_global_exists("usedWords") && ds_exists(global.usedWords, ds_type_map)) {
         ds_map_destroy(global.usedWords);

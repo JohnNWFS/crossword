@@ -139,6 +139,18 @@ if (array_length(unresolved_long_slots) > 0) {
     draw_set_color(c_white);
 }
 
+
+if (cmd_stage == 1) {
+    draw_set_color(c_yellow);
+    draw_text(padding, text_y + 156, "> ? (type A or D)");
+    draw_set_color(c_white);
+} else if (variable_global_exists("cmd_mode") && global.cmd_mode != 0) {
+    draw_set_color(c_yellow);
+    var cmd_lbl = (global.cmd_mode == 1) ? "> ?A (tap a cell)" : "> ?D (tap a cell)";
+    draw_text(padding, text_y + 156, cmd_lbl);
+    draw_set_color(c_white);
+}
+
 if (letter_entry_active) {
     draw_set_color(c_yellow);
     draw_text(padding, text_y + 168, "Cell entry: type any character (Space clears, Backspace/Delete clears), Esc cancels");
@@ -220,6 +232,59 @@ if (show_thinking) {
         draw_set_alpha(1);
     }
 }
+
+if (candidate_overlay_active) {
+    var gui_w = display_get_gui_width();
+    var gui_h = display_get_gui_height();
+    if (gui_w <= 0) gui_w = room_width;
+    if (gui_h <= 0) gui_h = room_height;
+
+    draw_set_alpha(0.90);
+    draw_set_color(c_black);
+    draw_rectangle(0, 0, gui_w, gui_h, false);
+    draw_set_alpha(1);
+
+    var box_margin = 48;
+    var box_w = min(520, gui_w - (box_margin * 2));
+    if (box_w < 300) box_w = gui_w - 20;
+
+    var max_rows = floor((gui_h - 180) / candidate_list_row_h);
+    if (max_rows < 1) max_rows = 1;
+    var total_rows = array_length(candidate_list_words);
+    candidate_list_visible_count = min(total_rows, max_rows);
+
+    var box_h = 110 + (candidate_list_visible_count * candidate_list_row_h);
+    candidate_list_box_x = floor((gui_w - box_w) * 0.5);
+    candidate_list_box_y = floor((gui_h - box_h) * 0.5);
+    candidate_list_box_w = box_w;
+    candidate_list_box_h = box_h;
+    candidate_list_first_row_y = candidate_list_box_y + 68;
+
+    draw_set_color(c_white);
+    draw_rectangle(candidate_list_box_x, candidate_list_box_y, candidate_list_box_x + box_w, candidate_list_box_y + box_h, true);
+    draw_text(candidate_list_box_x + 12, candidate_list_box_y + 12, "Close possibilities");
+    if (!is_undefined(candidate_slot_data)) {
+        draw_set_color(c_ltgray);
+        draw_text(candidate_list_box_x + 12, candidate_list_box_y + 34, string(candidate_slot_data.num) + candidate_slot_data.dir + " pattern=" + candidate_slot_pattern);
+        draw_set_color(c_white);
+    }
+
+    if (total_rows <= 0) {
+        draw_text(candidate_list_box_x + 12, candidate_list_first_row_y, "(no suggestions)" );
+    } else {
+        for (var t = 0; t < candidate_list_visible_count; t++) {
+            var row_y = candidate_list_first_row_y + (t * candidate_list_row_h);
+            var hovered = point_in_rectangle(mouse_x, mouse_y, candidate_list_box_x, row_y, candidate_list_box_x + box_w, row_y + candidate_list_row_h);
+            if (hovered) {
+                draw_set_color(c_dkgray);
+                draw_rectangle(candidate_list_box_x + 2, row_y, candidate_list_box_x + box_w - 2, row_y + candidate_list_row_h, false);
+                draw_set_color(c_white);
+            }
+            draw_text(candidate_list_box_x + 12, row_y + 2, candidate_list_words[t]);
+        }
+    }
+}
+
 if (template_list_overlay_active) {
     var gui_w = display_get_gui_width();
     var gui_h = display_get_gui_height();
@@ -294,7 +359,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 308 : 282;
+var opt_panel_h = global.mobile_layout ? 334 : 308;
 
 draw_set_alpha(0.35);
 draw_set_color(c_dkgray);
@@ -345,12 +410,18 @@ draw_set_color(c_white);
 
 draw_set_color(c_ltgray);
 draw_text(opt_x + 8, opt_y + 4 + 256, "Check grid: feasibility");
+
+var cm = variable_global_exists("cmd_mode") ? global.cmd_mode : 0;
+var cm_lbl = (cm == 0) ? "Close poss: OFF" : ((cm == 1) ? "Close poss: ?A" : "Close poss: ?D");
+draw_set_color(c_ltgray);
+draw_text(opt_x + 8, opt_y + 4 + 282, cm_lbl);
+draw_set_color(c_white);
 draw_set_color(c_white);
 
 if (global.mobile_layout) {
     var em = variable_global_exists("edit_mode") ? global.edit_mode : 0;
     draw_set_color(c_aqua);
-    draw_text(opt_x + 8, opt_y + 4 + 282, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
+    draw_text(opt_x + 8, opt_y + 4 + 308, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
     draw_set_color(c_white);
 }
 
@@ -386,6 +457,7 @@ if (solver_active && !template_list_overlay_active) {
     draw_text(px + 8, py + 42, "wu=" + string(global.solver_work_units));
     draw_text(px + 8, py + 58, "att=" + string(global.fill_attempt_count));
 }
+
 
 
 

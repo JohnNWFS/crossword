@@ -58,6 +58,22 @@ template_list_row_h = 22;
 template_list_first_row_y = 0;
 template_list_visible_count = 0;
 
+// Command / picker helpers (for ?A / ?D style commands)
+cmd_stage = 0; // 0=idle, 1=got ?, 2=armed
+global.cmd_mode = 0; // 0=none, 1=?A (across), 2=?D (down)
+candidate_overlay_active = false;
+candidate_list_words = [];
+candidate_list_box_x = 0;
+candidate_list_box_y = 0;
+candidate_list_box_w = 0;
+candidate_list_box_h = 0;
+candidate_list_row_h = 22;
+candidate_list_first_row_y = 0;
+candidate_list_visible_count = 0;
+candidate_slot_data = undefined;
+candidate_slot_pattern = "";
+
+
 global.fill_attempt_limit = 250000;
 global.fill_attempt_count = 0;
 global.step15_min_ratio = 0.60;

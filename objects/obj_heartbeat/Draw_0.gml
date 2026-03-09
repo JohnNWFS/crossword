@@ -318,7 +318,7 @@ if (candidate_overlay_active) {
             var pat = candidate_slot_pattern;
             var pat_len = string_length(pat);
             var wlen = string_length(w);
-            var x = x0;
+            var xpos = x0;
             for (var ci = 1; ci <= wlen; ci++) {
                 var ch = string_char_at(w, ci);
                 var hi = false;
@@ -331,13 +331,13 @@ if (candidate_overlay_active) {
                 if (hi) {
                     draw_set_alpha(0.22);
                     draw_set_color(c_ltgray);
-                    draw_rectangle(x - 1, row_y + 1, x + cw + 1, row_y + candidate_list_row_h - 1, false);
+                    draw_rectangle(xpos - 1, row_y + 1, xpos + cw + 1, row_y + candidate_list_row_h - 1, false);
                     draw_set_alpha(1);
                     draw_set_color(c_white);
                 }
 
-                draw_text(x, y0, ch);
-                x += string_width(ch);
+                draw_text(xpos, y0, ch);
+                xpos += string_width(ch);
             }
         }
     }
@@ -515,6 +515,7 @@ if (solver_active && !template_list_overlay_active) {
     draw_text(px + 8, py + 42, "wu=" + string(global.solver_work_units));
     draw_text(px + 8, py + 58, "att=" + string(global.fill_attempt_count));
 }
+
 
 
 

@@ -44,6 +44,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
+var opt_panel_h = 230;
 var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
@@ -89,6 +90,40 @@ if (mouse_check_button_pressed(mb_left)) {
         status_text = "ROI size set to " + string(global.roi_w) + "x" + string(global.roi_h);
         exit;
     }
+    // Stall restart toggle (helps large grids escape long stalls)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 130, opt_x + opt_w, opt_row0_y + 130 + opt_h)) {
+        if (!variable_global_exists("stall_restart_enabled")) global.stall_restart_enabled = false;
+        global.stall_restart_enabled = !global.stall_restart_enabled;
+        status_text = global.stall_restart_enabled ? "Stall restart enabled" : "Stall restart disabled";
+        exit;
+    }
+
+    // Vocab mode cycle (common-first -> common-only -> full)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 156, opt_x + opt_w, opt_row0_y + 156 + opt_h)) {
+        global.fill_vocab_mode = (global.fill_vocab_mode + 1) mod 3;
+        status_text = "Vocab mode set to " + string(global.fill_vocab_mode);
+        exit;
+    }
+
+    // Commonness scoring toggle (affects ranking within candidate lists)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 182, opt_x + opt_w, opt_row0_y + 182 + opt_h)) {
+        global.commonness_bias_enabled = !global.commonness_bias_enabled;
+        status_text = global.commonness_bias_enabled ? "Commonness scoring enabled" : "Commonness scoring disabled";
+        exit;
+    }
+
+    // Manual long-slot gate controls (moved to right column under solver panel)
+    var gate_y = opt_y + opt_panel_h + 12;
+    var gate_prev_x = opt_x;
+    var gate_next_x = opt_x + opt_w - 24;
+    if (point_in_rectangle(mouse_x, mouse_y, gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24)) {
+        set_long_gate_index(long_gate_index - 1);
+        exit;
+    }
+    if (point_in_rectangle(mouse_x, mouse_y, gate_next_x, gate_y, gate_next_x + 24, gate_y + 24)) {
+        set_long_gate_index(long_gate_index + 1);
+        exit;
+    }
 }
 if (mouse_check_button_pressed(mb_left)) {
     if (point_in_rectangle(mouse_x, mouse_y, size_prev_x, size_prev_y, size_prev_x + size_prev_w, size_prev_y + size_prev_h)) {
@@ -112,20 +147,6 @@ if (mouse_check_button_pressed(mb_left)) {
         exit;
     }
 
-    var text_y = padding + (grid_height * cell_size) + 16;
-    var gate_y = text_y + 168;
-    var gate_prev_x = padding;
-    var gate_next_x = padding + 252;
-
-    if (point_in_rectangle(mouse_x, mouse_y, gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24)) {
-        set_long_gate_index(long_gate_index - 1);
-        exit;
-    }
-
-    if (point_in_rectangle(mouse_x, mouse_y, gate_next_x, gate_y, gate_next_x + 24, gate_y + 24)) {
-        set_long_gate_index(long_gate_index + 1);
-        exit;
-    }
 }
 
 if (letter_entry_active) {

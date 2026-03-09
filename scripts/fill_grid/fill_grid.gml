@@ -1220,6 +1220,8 @@ function crossword_solver_place_seeded_frame(vs, slot_idx, pattern) {
     if (stack_depth == 0) vs.root_attempt_start = global.fill_attempt_count;
 
     obj_heartbeat.status_text = "Placed " + crossword_solver_slot_label(slot_data) + "=" + word;
+    vs.last_progress_ms = current_time;
+    vs.last_progress_units = global.solver_work_units;
     show_debug_message("[Visual] Seed place " + crossword_solver_slot_label(slot_data) + "=" + word
         + " pattern=" + pattern + " pick=" + string(chosen_idx + 1) + "/" + string(n));
 
@@ -1274,6 +1276,9 @@ function crossword_solver_restart_search(vs, reason) {
 
     if (!variable_global_exists("solver_restarts")) global.solver_restarts = 0;
     global.solver_restarts++;
+
+    vs.last_progress_ms = current_time;
+    vs.last_progress_units = global.solver_work_units;
 }
 
 function crossword_solver_try_place_starter(vs) {
@@ -1413,6 +1418,24 @@ function crossword_solver_tick() {
     if (is_undefined(vs)) {
         obj_heartbeat.solver_active = false;
         return;
+    }
+
+    // Optional: restart the search if we have not made progress for a long time (helps large grids).
+    if (variable_global_exists("stall_restart_enabled") && global.stall_restart_enabled) {
+        if (is_undefined(vs.last_progress_ms)) {
+            vs.last_progress_ms = current_time;
+            vs.last_progress_units = global.solver_work_units;
+        }
+        var ms_since = current_time - vs.last_progress_ms;
+        var units_since = global.solver_work_units - vs.last_progress_units;
+        var ms_limit = variable_global_exists("stall_restart_ms") ? global.stall_restart_ms : 15000;
+        var units_limit = variable_global_exists("stall_restart_units") ? global.stall_restart_units : 250000;
+        if (ms_since > ms_limit && units_since > units_limit) {
+            obj_heartbeat.status_text = "Restarting search (stall)";
+            crossword_solver_restart_search(vs, "stall");
+            global.visual_solver = vs;
+            return;
+        }
     }
 
     if (crossword_solver_handle_pending_remove(vs)) {
@@ -1584,6 +1607,8 @@ function crossword_solver_tick() {
     vs.stack[top_idx] = top;
 
     obj_heartbeat.status_text = "Placed " + crossword_solver_slot_label(slot_data) + "=" + word;
+    vs.last_progress_ms = current_time;
+    vs.last_progress_units = global.solver_work_units;
     if (top_idx == 0) vs.root_attempt_start = global.fill_attempt_count;
     global.visual_solver = vs;
 }
@@ -1743,7 +1768,9 @@ function crossword_start_visual_solver() {
         roi_x0: roi_x0,
         roi_y0: roi_y0,
         roi_w: roi_w,
-        roi_h: roi_h
+        roi_h: roi_h,
+        last_progress_ms: current_time,
+        last_progress_units: 0
     };
 
     obj_heartbeat.solver_active = true;

@@ -55,6 +55,12 @@ global.roi_x = 0;
 global.roi_y = 0;
 global.roi_w = 5;
 global.roi_h = 5;
+global.roi_default_size = 5;
+
+// Optional: restart search if the solver stalls for a long time (useful on 11x11+)
+global.stall_restart_enabled = false;
+global.stall_restart_ms = 15000;
+global.stall_restart_units = 250000;
 // RNG config: set to false for normal random behavior (recommended for release).
 global.use_fixed_seed = false;
 global.fixed_seed = 13371;

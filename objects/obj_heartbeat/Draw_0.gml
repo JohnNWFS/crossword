@@ -141,19 +141,10 @@ if (array_length(unresolved_long_slots) > 0) {
 
 if (letter_entry_active) {
     draw_set_color(c_yellow);
-    draw_text(padding, text_y + 168, "Cell entry: type any character, Esc cancels");
+    draw_text(padding, text_y + 168, "Cell entry: type any character (Space clears, Backspace/Delete clears), Esc cancels");
     draw_set_color(c_white);
 }
 
-var gate_y = text_y + 192;
-var gate_prev_x = padding;
-var gate_next_x = padding + 252;
-
-draw_rectangle(gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24, true);
-draw_text(gate_prev_x + 8, gate_y + 4, "<");
-draw_text(gate_prev_x + 34, gate_y + 4, "Manual long-slot gate: " + string(global.long_entry_min_len) + "+");
-draw_rectangle(gate_next_x, gate_y, gate_next_x + 24, gate_y + 24, true);
-draw_text(gate_next_x + 8, gate_y + 4, ">");
 
 
 var show_thinking = solver_active && !template_list_overlay_active;
@@ -303,10 +294,11 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
+var opt_panel_h = 230;
 
 draw_set_alpha(0.35);
 draw_set_color(c_dkgray);
-draw_rectangle(opt_x, opt_y, opt_x + opt_w, opt_y + 152, false);
+draw_rectangle(opt_x, opt_y, opt_x + opt_w, opt_y + opt_panel_h, false);
 draw_set_alpha(1);
 
 var mode = 0;
@@ -334,7 +326,28 @@ var roi_lbl = roi_on ? "ROI: ON" : "ROI: OFF";
 draw_set_color(c_yellow);
 draw_text(opt_x + 120, opt_y + 4 + 100, roi_lbl);
 draw_text(opt_x + 8, opt_y + 4 + 126, "ROI size: " + string(roi_size) + "x" + string(roi_size));
+var stall_on = variable_global_exists("stall_restart_enabled") && global.stall_restart_enabled;
+draw_set_color(c_ltgray);
+draw_text(opt_x + 8, opt_y + 4 + 152, stall_on ? "Stall restart: ON" : "Stall restart: OFF");
+
+var vocab_mode = variable_global_exists("fill_vocab_mode") ? global.fill_vocab_mode : 0;
+var vocab_lbl = (vocab_mode == 0) ? "Vocab: common-first" : ((vocab_mode == 1) ? "Vocab: common-only" : "Vocab: full");
+draw_text(opt_x + 8, opt_y + 4 + 178, vocab_lbl);
+
+var bias_on = variable_global_exists("commonness_bias_enabled") && global.commonness_bias_enabled;
+draw_text(opt_x + 8, opt_y + 4 + 204, bias_on ? "Commonness score: ON" : "Commonness score: OFF");
 draw_set_color(c_white);
+
+// Manual long-slot gate (moved under solver panel so it never overlaps bottom buttons)
+var gate_y = opt_y + opt_panel_h + 12;
+var gate_prev_x = opt_x;
+var gate_next_x = opt_x + opt_w - 24;
+draw_rectangle(gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24, true);
+draw_text(gate_prev_x + 8, gate_y + 4, "<");
+draw_text(gate_prev_x + 34, gate_y + 4, "Manual long-slot gate: " + string(global.long_entry_min_len) + "+");
+draw_rectangle(gate_next_x, gate_y, gate_next_x + 24, gate_y + 24, true);
+draw_text(gate_next_x + 8, gate_y + 4, ">");
+
 if (solver_active && !template_list_overlay_active) {
     var elapsed_s = 0;
     if (variable_global_exists("solver_start_time_ms") && global.solver_start_time_ms > 0) {

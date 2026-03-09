@@ -64,7 +64,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 282 : 256;
+var opt_panel_h = global.mobile_layout ? 308 : 282;
 var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
@@ -135,7 +135,7 @@ if (mouse_check_button_pressed(mb_left)) {
 
     // Mobile-only: toggle between block editing and letter entry (Shift is not available on touch)
     if (global.mobile_layout
-        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 234, opt_x + opt_w, opt_row0_y + 234 + opt_h)) {
+        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 260, opt_x + opt_w, opt_row0_y + 260 + opt_h)) {
         global.edit_mode = 1 - global.edit_mode;
         status_text = (global.edit_mode == 1) ? "Edit mode: Letters" : "Edit mode: Blocks";
         exit;
@@ -146,6 +146,12 @@ if (mouse_check_button_pressed(mb_left)) {
         if (!variable_global_exists("immutables_mode")) global.immutables_mode = 0;
         global.immutables_mode = (global.immutables_mode + 1) mod 3;
         status_text = "Immutables mode set to " + string(global.immutables_mode);
+        exit;
+    }
+
+    // Feasibility check: scan all slots and confirm each has a dictionary match (or at least one candidate).
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 234, opt_x + opt_w, opt_row0_y + 234 + opt_h)) {
+        crossword_check_grid_feasibility();
         exit;
     }
     // Manual long-slot gate controls (moved to right column under solver panel)

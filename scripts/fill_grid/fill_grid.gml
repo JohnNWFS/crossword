@@ -446,6 +446,64 @@ function crossword_check_remaining_across_feasibility() {
     return (total == 0) ? true : (viable == total);
 }
 
+function crossword_slot_has_candidate_raw(slot_data, pattern) {
+    var key_len = string(slot_data.len);
+    if (!variable_global_exists("wordsByLength") || !ds_exists(global.wordsByLength, ds_type_map)) return false;
+    if (!ds_map_exists(global.wordsByLength, key_len)) return false;
+    var bucket = global.wordsByLength[? key_len];
+    var bucket_count = ds_list_size(bucket);
+    var slot_dir = (slot_data.dir == "A") ? "horizontal" : "vertical";
+    for (var i = 0; i < bucket_count; i++) {
+        var w = bucket[| i];
+        if (!crossword_word_matches_pattern(w, pattern)) continue;
+        if (!can_place_word(w, slot_data.col, slot_data.row, slot_dir)) continue;
+        return true;
+    }
+    return false;
+}
+
+function crossword_check_grid_feasibility() {
+    if (!variable_global_exists("wordLookup") || !ds_exists(global.wordLookup, ds_type_map)) {
+        obj_heartbeat.status_text = "Feasibility check: dictionary not loaded";
+        show_debug_message("[Feasibility] Dictionary not loaded.");
+        return false;
+    }
+
+    var slots = crossword_build_slots();
+    var total = array_length(slots);
+    var fails = 0;
+    var fail_lines = [];
+
+    for (var s = 0; s < total; s++) {
+        var slot_data = slots[s];
+        var pattern = crossword_slot_pattern(slot_data);
+
+        if (!crossword_pattern_has_blank(pattern)) {
+            var full_word = crossword_slot_word(slot_data);
+            if (!ds_map_exists(global.wordLookup, full_word)) {
+                fail_lines[fails++] = crossword_solver_slot_label(slot_data) + "=" + full_word + " (not in dictionary)";
+            }
+        } else {
+            if (!crossword_slot_has_candidate_raw(slot_data, pattern)) {
+                fail_lines[fails++] = crossword_solver_slot_label(slot_data) + " pattern=" + pattern + " (0 candidates)";
+            }
+        }
+    }
+
+    if (fails == 0) {
+        obj_heartbeat.status_text = "Feasibility OK (" + string(total) + " slots)";
+        show_debug_message("[Feasibility] OK: all " + string(total) + " slots have >=1 candidate (or are valid words).");
+        return true;
+    }
+
+    obj_heartbeat.status_text = "Feasibility FAIL (" + string(fails) + "/" + string(total) + ")";
+    show_debug_message("[Feasibility] FAIL: " + string(fails) + "/" + string(total) + " slots." );
+    for (var i = 0; i < min(24, fails); i++) {
+        show_debug_message("[Feasibility] " + fail_lines[i]);
+    }
+    return false;
+}
+
 function fill_grid(posX, posY) {
     if (variable_global_exists("usedWords") && ds_exists(global.usedWords, ds_type_map)) {
         ds_map_destroy(global.usedWords);

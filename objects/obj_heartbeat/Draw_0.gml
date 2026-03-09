@@ -294,7 +294,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 282 : 256;
+var opt_panel_h = global.mobile_layout ? 308 : 282;
 
 draw_set_alpha(0.35);
 draw_set_color(c_dkgray);
@@ -343,10 +343,14 @@ draw_set_color(c_yellow);
 draw_text(opt_x + 8, opt_y + 4 + 230, im_lbl);
 draw_set_color(c_white);
 
+draw_set_color(c_ltgray);
+draw_text(opt_x + 8, opt_y + 4 + 256, "Check grid: feasibility");
+draw_set_color(c_white);
+
 if (global.mobile_layout) {
     var em = variable_global_exists("edit_mode") ? global.edit_mode : 0;
     draw_set_color(c_aqua);
-    draw_text(opt_x + 8, opt_y + 4 + 256, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
+    draw_text(opt_x + 8, opt_y + 4 + 282, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
     draw_set_color(c_white);
 }
 

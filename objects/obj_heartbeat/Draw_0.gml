@@ -45,6 +45,27 @@ for (var i = 0; i < array_length(slots); i++) {
     }
 }
 
+// Mark any fully-filled across/down entries that are NOT in the dictionary.
+var invalid_word_cells = ds_map_create();
+var have_dict = variable_global_exists("wordLookup") && ds_exists(global.wordLookup, ds_type_map);
+if (have_dict) {
+    for (var si = 0; si < array_length(slots); si++) {
+        var sd = slots[si];
+        var w = crossword_slot_word(sd);
+        if (string_pos("_", w) > 0) continue;
+        if (w == "") continue;
+        if (!ds_map_exists(global.wordLookup, w)) {
+            for (var k2 = 0; k2 < sd.len; k2++) {
+                var ic = sd.col + ((sd.dir == "A") ? k2 : 0);
+                var ir = sd.row + ((sd.dir == "D") ? k2 : 0);
+                var ikey = string(ic) + "," + string(ir);
+                if (!ds_map_exists(invalid_word_cells, ikey)) ds_map_add(invalid_word_cells, ikey, true);
+            }
+        }
+    }
+}
+
+
 for (var col_i = 0; col_i < grid_width; col_i++) {
     for (var row_i = 0; row_i < grid_height; row_i++) {
         var screen_col = padding + (col_i * cell_size);
@@ -76,6 +97,16 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
                 }
                 draw_text(screen_col + 2, screen_row + 1, string(slot_numbers[? num_key]));
                 draw_set_font(default_font);
+
+            }
+
+            // Missing dictionary marker (only when the whole entry is filled)
+            if (ds_map_exists(invalid_word_cells, cell_key)) {
+                draw_set_color(c_fuchsia);
+                draw_triangle(screen_col + cell_size - 2, screen_row + 2,
+                    screen_col + cell_size - 10, screen_row + 2,
+                    screen_col + cell_size - 2, screen_row + 10, false);
+                draw_set_color(c_white);
             }
 
             if (content != "") {
@@ -86,6 +117,7 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
 }
 
 ds_map_destroy(slot_numbers);
+ds_map_destroy(invalid_word_cells);
 // ROI highlight (chunk fill)
 if (variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled) {
     var rx = clamp(global.roi_x, 0, max(0, grid_width - global.roi_w));

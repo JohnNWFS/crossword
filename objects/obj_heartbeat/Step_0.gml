@@ -47,11 +47,6 @@ var opt_h = 22;
 var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
-    // Temporary UI debug: click position and panel bounds
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y, opt_x + opt_w, opt_y + 126)) {
-        show_debug_message("[UI] click mouse=(" + string(mouse_x) + "," + string(mouse_y) + ") panel=(" + string(opt_x) + "," + string(opt_y) + ")-(" + string(opt_x + opt_w) + "," + string(opt_y + 126) + ") row0_y=" + string(opt_row0_y));
-    }
-
     // Method radios (rows are below the "Solver Method" header)
     if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y, opt_x + opt_w, opt_row0_y + opt_h)) {
         global.solver_mode = 0;
@@ -81,6 +76,17 @@ if (mouse_check_button_pressed(mb_left)) {
     if (point_in_rectangle(mouse_x, mouse_y, opt_x + 110, opt_row0_y + 78, opt_x + opt_w, opt_row0_y + 78 + opt_h)) {
         global.roi_fill_enabled = !global.roi_fill_enabled;
         status_text = global.roi_fill_enabled ? "ROI fill enabled (Alt+click grid to move ROI)" : "ROI fill disabled";
+        exit;
+    }
+    // ROI size toggle (5x5 <-> 7x7)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 104, opt_x + opt_w, opt_row0_y + 104 + opt_h)) {
+        if (!variable_global_exists("roi_default_size")) global.roi_default_size = 5;
+        global.roi_default_size = (global.roi_default_size == 7) ? 5 : 7;
+        global.roi_w = global.roi_default_size;
+        global.roi_h = global.roi_default_size;
+        global.roi_x = clamp(global.roi_x, 0, max(0, grid_width - global.roi_w));
+        global.roi_y = clamp(global.roi_y, 0, max(0, grid_height - global.roi_h));
+        status_text = "ROI size set to " + string(global.roi_w) + "x" + string(global.roi_h);
         exit;
     }
 }
@@ -126,6 +132,14 @@ if (letter_entry_active) {
     if (keyboard_check_pressed(vk_escape)) {
         letter_entry_active = false;
         status_text = "Letter entry canceled";
+    } else if (keyboard_check_pressed(vk_backspace) || keyboard_check_pressed(vk_delete)) {
+        if (letter_entry_col >= 0 && letter_entry_row >= 0
+            && letter_entry_col < grid_width && letter_entry_row < grid_height
+            && grid[# letter_entry_col, letter_entry_row] != "INVALID") {
+            grid[# letter_entry_col, letter_entry_row] = "";
+            status_text = "Cell cleared at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
+        }
+        letter_entry_active = false;
     } else {
         var typed = keyboard_lastchar;
         if (typed != "") {
@@ -134,15 +148,19 @@ if (letter_entry_active) {
                 if (letter_entry_col >= 0 && letter_entry_row >= 0
                     && letter_entry_col < grid_width && letter_entry_row < grid_height
                     && grid[# letter_entry_col, letter_entry_row] != "INVALID") {
-                    grid[# letter_entry_col, letter_entry_row] = ch;
-                    status_text = "Cell set at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
+                    if (ch == " ") {
+                        grid[# letter_entry_col, letter_entry_row] = "";
+                        status_text = "Cell cleared at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
+                    } else {
+                        grid[# letter_entry_col, letter_entry_row] = ch;
+                        status_text = "Cell set at (" + string(letter_entry_col + 1) + "," + string(letter_entry_row + 1) + ")";
+                    }
                 }
                 letter_entry_active = false;
             }
         }
     }
 }
-
 if (mouse_check_button_pressed(mb_left)
     && mouse_x >= padding && mouse_x <= padding + grid_width * cell_size
     && mouse_y >= padding && mouse_y <= padding + grid_height * cell_size) {
@@ -153,8 +171,9 @@ if (mouse_check_button_pressed(mb_left)
     if (clicked_i >= 0 && clicked_i < grid_width && clicked_j >= 0 && clicked_j < grid_height) {
         if (keyboard_check(vk_alt)) {
             global.roi_fill_enabled = true;
-            global.roi_w = 5;
-            global.roi_h = 5;
+            if (!variable_global_exists("roi_default_size")) global.roi_default_size = 5;
+            global.roi_w = global.roi_default_size;
+            global.roi_h = global.roi_default_size;
             global.roi_x = clamp(clicked_i, 0, max(0, grid_width - global.roi_w));
             global.roi_y = clamp(clicked_j, 0, max(0, grid_height - global.roi_h));
             status_text = "ROI set to (" + string(global.roi_x + 1) + "," + string(global.roi_y + 1) + ") size " + string(global.roi_w) + "x" + string(global.roi_h);
@@ -163,7 +182,7 @@ if (mouse_check_button_pressed(mb_left)
                 letter_entry_active = true;
                 letter_entry_col = clicked_i;
                 letter_entry_row = clicked_j;
-                status_text = "Type any character (Esc to cancel)";
+                status_text = "Type any character (Space clears, Backspace/Delete clears, Esc cancels)";
             }
         } else {
             var new_value = "INVALID";
@@ -192,9 +211,14 @@ if (mouse_check_button_pressed(mb_right)
         if (grid[# r_clicked_i, r_clicked_j] == "INVALID") {
             grid[# r_clicked_i, r_clicked_j] = "";
             status_text = "Removed single block at (" + string(r_clicked_i + 1) + "," + string(r_clicked_j + 1) + ")";
+        } else if (grid[# r_clicked_i, r_clicked_j] != "") {
+            grid[# r_clicked_i, r_clicked_j] = "";
+            status_text = "Cleared cell at (" + string(r_clicked_i + 1) + "," + string(r_clicked_j + 1) + ")";
         }
     }
 }
+
+
 
 
 

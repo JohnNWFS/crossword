@@ -306,7 +306,7 @@ var opt_h = 22;
 
 draw_set_alpha(0.35);
 draw_set_color(c_dkgray);
-draw_rectangle(opt_x, opt_y, opt_x + opt_w, opt_y + 126, false);
+draw_rectangle(opt_x, opt_y, opt_x + opt_w, opt_y + 152, false);
 draw_set_alpha(1);
 
 var mode = 0;
@@ -328,10 +328,14 @@ draw_set_color(c_ltgray);
 draw_text(opt_x + 8, opt_y + 4 + 100, "Brute burst: " + string(brute_left));
 
 var roi_on = variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled;
-var roi_lbl = roi_on ? "ROI 5x5: ON" : "ROI 5x5: OFF";
+var roi_size = 5;
+if (variable_global_exists("roi_default_size")) roi_size = global.roi_default_size;
+var roi_lbl = roi_on ? "ROI: ON" : "ROI: OFF";
 draw_set_color(c_yellow);
 draw_text(opt_x + 120, opt_y + 4 + 100, roi_lbl);
-draw_set_color(c_white);if (solver_active && !template_list_overlay_active) {
+draw_text(opt_x + 8, opt_y + 4 + 126, "ROI size: " + string(roi_size) + "x" + string(roi_size));
+draw_set_color(c_white);
+if (solver_active && !template_list_overlay_active) {
     var elapsed_s = 0;
     if (variable_global_exists("solver_start_time_ms") && global.solver_start_time_ms > 0) {
         elapsed_s = floor(max(0, current_time - global.solver_start_time_ms) / 1000);
@@ -351,4 +355,7 @@ draw_set_color(c_white);if (solver_active && !template_list_overlay_active) {
     draw_text(px + 8, py + 42, "wu=" + string(global.solver_work_units));
     draw_text(px + 8, py + 58, "att=" + string(global.fill_attempt_count));
 }
+
+
+
 

@@ -312,7 +312,33 @@ if (candidate_overlay_active) {
                 draw_rectangle(candidate_list_box_x + 2, row_y, candidate_list_box_x + box_w - 2, row_y + candidate_list_row_h, false);
                 draw_set_color(c_white);
             }
-            draw_text(candidate_list_box_x + 12, row_y + 2, candidate_list_words[t]);
+            var w = candidate_list_words[t];
+            var x0 = candidate_list_box_x + 12;
+            var y0 = row_y + 2;
+            var pat = candidate_slot_pattern;
+            var pat_len = string_length(pat);
+            var wlen = string_length(w);
+            var x = x0;
+            for (var ci = 1; ci <= wlen; ci++) {
+                var ch = string_char_at(w, ci);
+                var hi = false;
+                if (ci <= pat_len) {
+                    var pch = string_char_at(pat, ci);
+                    if (pch != "_" && pch == ch) hi = true;
+                }
+
+                var cw = max(6, string_width(ch));
+                if (hi) {
+                    draw_set_alpha(0.22);
+                    draw_set_color(c_ltgray);
+                    draw_rectangle(x - 1, row_y + 1, x + cw + 1, row_y + candidate_list_row_h - 1, false);
+                    draw_set_alpha(1);
+                    draw_set_color(c_white);
+                }
+
+                draw_text(x, y0, ch);
+                x += string_width(ch);
+            }
         }
     }
 }

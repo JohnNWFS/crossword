@@ -9,20 +9,40 @@ cell_size = 32;
 padding = 64;
 layout_bottom_reserved = 220;
 
-size_prev_x = padding;
-size_prev_y = 24;
-size_prev_w = 32;
-size_prev_h = 32;
+// Cache base layout values so we can switch to a compact touch layout on small screens (HTML/mobile)
+base_padding = padding;
+base_layout_bottom_reserved = layout_bottom_reserved;
+mobile_layout_prev = false;
 
-size_next_x = padding + 176;
-size_next_y = 24;
-size_next_w = 32;
-size_next_h = 32;
+recalc_ui_positions = function() {
+    size_prev_x = padding;
+    size_prev_y = 24;
+    size_prev_w = 32;
+    size_prev_h = 32;
 
-new_blank_x = padding + 224;
-new_blank_y = 24;
-new_blank_w = 160;
-new_blank_h = 32;
+    size_next_x = padding + 176;
+    size_next_y = 24;
+    size_next_w = 32;
+    size_next_h = 32;
+
+    new_blank_x = padding + 224;
+    new_blank_y = 24;
+    new_blank_w = 160;
+    new_blank_h = 32;
+};
+
+apply_mobile_layout = function(_on) {
+    // Keep changes minimal to avoid breaking desktop layout.
+    if (_on) {
+        padding = 24;
+        layout_bottom_reserved = 190;
+    } else {
+        padding = base_padding;
+        layout_bottom_reserved = base_layout_bottom_reserved;
+    }
+    recalc_ui_positions();
+    update_cell_size();
+};
 
 status_text = "Ready";
 current_template_name = "";
@@ -47,7 +67,16 @@ global.commonness_bias_enabled = true;
 
 // Solver method controls (can be changed while running)
 global.solver_mode = 0; // 0=Normal, 1=Relaxed, 2=Brute
+
+// Mobile/HTML helpers
+global.mobile_layout = false;
+global.edit_mode = 0; // 0=blocks, 1=letters (used on small touch screens)
 global.brute_burst_remaining = 0;
+
+// Mobile letter-entry async prompt state (so mobile can open the OS keyboard reliably)
+cell_dialog_request_id = -1;
+cell_dialog_col = -1;
+cell_dialog_row = -1;
 
 // ROI (chunk fill) controls: Alt+LMB to set top-left of a 5x5 region
 global.roi_fill_enabled = false;
@@ -69,6 +98,7 @@ long_gate_options = [7, 9, 11, 13, 15];
 long_gate_index = 1;
 
 letter_entry_active = false;
+letter_entry_prev_active = false;
 letter_entry_col = -1;
 letter_entry_row = -1;
 
@@ -114,6 +144,7 @@ update_cell_size = function() {
 };
 update_cell_size();
 apply_rng_seed();
+recalc_ui_positions();
 
 sanitize_template_name = function(_name) {
     var src = string_lower(_name);

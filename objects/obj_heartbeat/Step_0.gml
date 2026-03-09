@@ -36,6 +36,26 @@ if (template_list_overlay_active) {
     exit;
 }
 
+// Detect small-screen touch layout (HTML/Android/iOS). Keeps desktop behavior unchanged.
+var is_mobile_os = (os_type == os_android) || (os_type == os_ios) || (os_type == os_html5);
+if (is_mobile_os) {
+    var sw = display_get_width();
+    var sh = display_get_height();
+    global.mobile_layout = (min(sw, sh) <= 600);
+} else {
+    global.mobile_layout = false;
+}
+
+if (global.mobile_layout != mobile_layout_prev) {
+    apply_mobile_layout(global.mobile_layout);
+    mobile_layout_prev = global.mobile_layout;
+}
+
+// HTML5: keep GUI sized to the browser window (helps small screens)
+if (os_type == os_html5) {
+    display_set_gui_maximize();
+}
+
 // Solver options panel (top-right)
 // Normal: all heuristics
 // Relaxed: fewer heuristics
@@ -44,7 +64,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = 230;
+var opt_panel_h = global.mobile_layout ? 256 : 230;
 var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
@@ -112,6 +132,14 @@ if (mouse_check_button_pressed(mb_left)) {
         exit;
     }
 
+
+    // Mobile-only: toggle between block editing and letter entry (Shift is not available on touch)
+    if (global.mobile_layout
+        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 208, opt_x + opt_w, opt_row0_y + 208 + opt_h)) {
+        global.edit_mode = 1 - global.edit_mode;
+        status_text = (global.edit_mode == 1) ? "Edit mode: Letters" : "Edit mode: Blocks";
+        exit;
+    }
     // Manual long-slot gate controls (moved to right column under solver panel)
     var gate_y = opt_y + opt_panel_h + 12;
     var gate_prev_x = opt_x;
@@ -198,12 +226,24 @@ if (mouse_check_button_pressed(mb_left)
             global.roi_x = clamp(clicked_i, 0, max(0, grid_width - global.roi_w));
             global.roi_y = clamp(clicked_j, 0, max(0, grid_height - global.roi_h));
             status_text = "ROI set to (" + string(global.roi_x + 1) + "," + string(global.roi_y + 1) + ") size " + string(global.roi_w) + "x" + string(global.roi_h);
-        } else if (keyboard_check(vk_shift)) {
+        } else if (keyboard_check(vk_shift) || (global.mobile_layout && global.edit_mode == 1)) {
             if (grid[# clicked_i, clicked_j] != "INVALID") {
-                letter_entry_active = true;
                 letter_entry_col = clicked_i;
                 letter_entry_row = clicked_j;
-                status_text = "Type any character (Space clears, Backspace/Delete clears, Esc cancels)";
+
+                if (global.mobile_layout) {
+                    // On mobile/HTML, use an async string prompt to reliably open the OS keyboard.
+                    cell_dialog_col = clicked_i;
+                    cell_dialog_row = clicked_j;
+                    cell_dialog_request_id = get_string_async(
+                        "Enter a character (blank clears):",
+                        string(grid[# clicked_i, clicked_j])
+                    );
+                    status_text = "Cell entry prompt opened";
+                } else {
+                    letter_entry_active = true;
+                    status_text = "Type any character (Space clears, Backspace/Delete clears, Esc cancels)";
+                }
             }
         } else {
             var new_value = "INVALID";

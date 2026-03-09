@@ -37,7 +37,7 @@ if (template_list_overlay_active) {
 }
 
 // Detect small-screen touch layout (HTML/Android/iOS). Keeps desktop behavior unchanged.
-var is_mobile_os = (os_type == os_android) || (os_type == os_ios) || (os_type == os_html5);
+var is_mobile_os = (os_type == os_android) || (os_type == os_ios) || (os_type == os_browser);
 if (is_mobile_os) {
     var sw = display_get_width();
     var sh = display_get_height();
@@ -52,7 +52,7 @@ if (global.mobile_layout != mobile_layout_prev) {
 }
 
 // HTML5: keep GUI sized to the browser window (helps small screens)
-if (os_type == os_html5) {
+if (os_type == os_browser) {
     display_set_gui_maximize();
 }
 
@@ -278,6 +278,7 @@ if (mouse_check_button_pressed(mb_right)
         }
     }
 }
+
 
 
 

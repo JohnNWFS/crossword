@@ -294,7 +294,7 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 256 : 230;
+var opt_panel_h = global.mobile_layout ? 282 : 256;
 
 draw_set_alpha(0.35);
 draw_set_color(c_dkgray);
@@ -337,12 +337,19 @@ draw_text(opt_x + 8, opt_y + 4 + 178, vocab_lbl);
 var bias_on = variable_global_exists("commonness_bias_enabled") && global.commonness_bias_enabled;
 draw_text(opt_x + 8, opt_y + 4 + 204, bias_on ? "Commonness score: ON" : "Commonness score: OFF");
 
+var im = variable_global_exists("immutables_mode") ? global.immutables_mode : 0;
+var im_lbl = (im == 0) ? "Immutables: Strict" : ((im == 1) ? "Immutables: Soft" : "Immutables: Off");
+draw_set_color(c_yellow);
+draw_text(opt_x + 8, opt_y + 4 + 230, im_lbl);
+draw_set_color(c_white);
+
 if (global.mobile_layout) {
     var em = variable_global_exists("edit_mode") ? global.edit_mode : 0;
     draw_set_color(c_aqua);
-    draw_text(opt_x + 8, opt_y + 4 + 230, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
+    draw_text(opt_x + 8, opt_y + 4 + 256, (em == 1) ? "Edit: Letters" : "Edit: Blocks");
     draw_set_color(c_white);
 }
+
 draw_set_color(c_white);
 
 // Manual long-slot gate (moved under solver panel so it never overlaps bottom buttons)

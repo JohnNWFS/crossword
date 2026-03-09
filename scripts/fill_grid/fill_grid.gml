@@ -455,6 +455,7 @@ function fill_grid(posX, posY) {
     global.fill_attempt_count = 0;
     // Treat any manually prefilled letters as immutable (protected).
     // This preserves user-seeded entries regardless of the long-slot gate.
+
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
             var v = obj_heartbeat.grid[# col_i, row_i];
@@ -832,7 +833,12 @@ function crossword_solver_clear_tried_maps(vs) {
         var protected_map = variable_struct_get(vs, "protected_cells");
         if (!is_undefined(protected_map) && ds_exists(protected_map, ds_type_map)) ds_map_destroy(protected_map);
     }
+    if (variable_struct_exists(vs, "immutable_cells")) {
+        var imm_map = variable_struct_get(vs, "immutable_cells");
+        if (!is_undefined(imm_map) && ds_exists(imm_map, ds_type_map)) ds_map_destroy(imm_map);
+    }
 }
+
 
 function crossword_solver_clear_visuals() {
     global.solver_fail_cells = [];
@@ -959,6 +965,24 @@ function crossword_solver_effective_mode() {
     return mode;
 }
 
+
+function crossword_solver_seed_overwrite_count(vs, slot_data, word) {
+    if (is_undefined(vs) || is_undefined(vs.immutable_cells) || !ds_exists(vs.immutable_cells, ds_type_map)) return 0;
+    var slot_dir = slot_data.dir;
+    var count = 0;
+    for (var k = 0; k < slot_data.len; k++) {
+        var col_i = slot_data.col + ((slot_dir == "A") ? k : 0);
+        var row_i = slot_data.row + ((slot_dir == "D") ? k : 0);
+        var old_ch = obj_heartbeat.grid[# col_i, row_i];
+        var new_ch = string_char_at(word, k + 1);
+        if (old_ch != "" && old_ch != "INVALID" && old_ch != new_ch) {
+            var key = string(col_i) + "," + string(row_i);
+            if (ds_map_exists(vs.immutable_cells, key)) count++;
+        }
+    }
+    return count;
+}
+
 function crossword_solver_count_candidates_limit(vs, slot_data, pattern, limit) {
     var key_len = string(slot_data.len);
     if (!ds_map_exists(global.wordsByLength, key_len)) {
@@ -1055,6 +1079,12 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         }
 
         var final_score = base_score + common_bonus;
+        // Immutables soft penalty: prefer not to overwrite user-seeded letters unless needed.
+        var imm_mode = variable_global_exists("immutables_mode") ? global.immutables_mode : 0;
+        if (imm_mode == 1) {
+            var ow = crossword_solver_seed_overwrite_count(vs, slot_data, w);
+            final_score -= ow * 3000.0;
+        }
         var ins = ranked_count;
         while (ins > 0 && ranked[ins - 1].s < final_score) {
             ins--;
@@ -1790,11 +1820,14 @@ function crossword_start_visual_solver() {
 
     // Treat any manually prefilled letters as immutable (protected).
     // This preserves user-seeded entries regardless of the long-slot gate.
+    var immutable_cells = ds_map_create();
+
     for (var col_i = 0; col_i < obj_heartbeat.grid_width; col_i++) {
         for (var row_i = 0; row_i < obj_heartbeat.grid_height; row_i++) {
             var v = obj_heartbeat.grid[# col_i, row_i];
             if (v != "" && v != "INVALID") {
                 var pkey = string(col_i) + "," + string(row_i);
+                if (!ds_map_exists(immutable_cells, pkey)) ds_map_add(immutable_cells, pkey, true);
                 if (!ds_map_exists(long_gate.protected_cells, pkey)) ds_map_add(long_gate.protected_cells, pkey, true);
             }
         }
@@ -1821,6 +1854,8 @@ function crossword_start_visual_solver() {
     if (array_length(slots) <= 0) {
         obj_heartbeat.status_text = "Visual solver: no slots";
         show_debug_message("[Visual] Missing fillable slots.");
+        if (ds_exists(long_gate.protected_cells, ds_type_map)) ds_map_destroy(long_gate.protected_cells);
+        if (ds_exists(immutable_cells, ds_type_map)) ds_map_destroy(immutable_cells);
         return false;
     }
 
@@ -1838,6 +1873,7 @@ function crossword_start_visual_solver() {
         seed_remaining: roi_on ? 1 : crossword_solver_seed_target_for_size(obj_heartbeat.grid_width),
         slot_degree: crossword_solver_build_slot_degrees(slots),
         protected_cells: long_gate.protected_cells,
+        immutable_cells: immutable_cells,
         roi_on: roi_on,
         roi_x0: roi_x0,
         roi_y0: roi_y0,

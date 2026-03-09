@@ -68,6 +68,8 @@ global.commonness_bias_enabled = true;
 // Solver method controls (can be changed while running)
 global.solver_mode = 0; // 0=Normal, 1=Relaxed, 2=Brute
 
+global.immutables_mode = 0; // 0=Strict, 1=Soft, 2=Off
+
 // Mobile/HTML helpers
 global.mobile_layout = false;
 global.edit_mode = 0; // 0=blocks, 1=letters (used on small touch screens)
@@ -483,6 +485,7 @@ if (common_file != "") {
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
 }
+
 
 
 

@@ -44,37 +44,41 @@ var opt_x = room_width - 230;
 var opt_y = 92;
 var opt_w = 220;
 var opt_h = 22;
+var opt_row0_y = opt_y + 22;
 
 if (mouse_check_button_pressed(mb_left)) {
-    // Method radios
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y, opt_x + opt_w, opt_y + opt_h)) {
+    // Temporary UI debug: click position and panel bounds
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y, opt_x + opt_w, opt_y + 126)) {
+        show_debug_message("[UI] click mouse=(" + string(mouse_x) + "," + string(mouse_y) + ") panel=(" + string(opt_x) + "," + string(opt_y) + ")-(" + string(opt_x + opt_w) + "," + string(opt_y + 126) + ") row0_y=" + string(opt_row0_y));
+    }
+
+    // Method radios (rows are below the "Solver Method" header)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y, opt_x + opt_w, opt_row0_y + opt_h)) {
         global.solver_mode = 0;
         global.brute_burst_remaining = 0;
         status_text = "Solver method: Normal";
         exit;
     }
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y + 26, opt_x + opt_w, opt_y + 26 + opt_h)) {
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 26, opt_x + opt_w, opt_row0_y + 26 + opt_h)) {
         global.solver_mode = 1;
         global.brute_burst_remaining = 0;
         status_text = "Solver method: Relaxed";
         exit;
     }
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y + 52, opt_x + opt_w, opt_y + 52 + opt_h)) {
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 52, opt_x + opt_w, opt_row0_y + 52 + opt_h)) {
         global.solver_mode = 2;
         global.brute_burst_remaining = 0;
         status_text = "Solver method: Brute";
         exit;
     }
 
-    // Brute burst
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y + 78, opt_x + opt_w, opt_y + 78 + opt_h)) {
+    // Brute burst + ROI share the last row (matches Draw)
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 78, opt_x + 110, opt_row0_y + 78 + opt_h)) {
         global.brute_burst_remaining = 200;
         status_text = "Brute burst: 200 placements";
         exit;
     }
-
-    // ROI toggle
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_y + 104, opt_x + opt_w, opt_y + 104 + opt_h)) {
+    if (point_in_rectangle(mouse_x, mouse_y, opt_x + 110, opt_row0_y + 78, opt_x + opt_w, opt_row0_y + 78 + opt_h)) {
         global.roi_fill_enabled = !global.roi_fill_enabled;
         status_text = global.roi_fill_enabled ? "ROI fill enabled (Alt+click grid to move ROI)" : "ROI fill disabled";
         exit;
@@ -191,6 +195,7 @@ if (mouse_check_button_pressed(mb_right)
         }
     }
 }
+
 
 
 

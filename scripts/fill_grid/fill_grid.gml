@@ -372,21 +372,21 @@ function crossword_export_word_lists() {
     }
 
     // Sort by clue number.
-    for (var x = 0; x < a_count - 1; x++) {
-        for (var y = x + 1; y < a_count; y++) {
-            if (across[y].num < across[x].num) {
-                var tmp = across[x];
-                across[x] = across[y];
-                across[y] = tmp;
+    for (var ax = 0; ax < a_count - 1; ax++) {
+        for (var ay = ax + 1; ay < a_count; ay++) {
+            if (across[ay].num < across[ax].num) {
+                var tmp = across[ax];
+                across[ax] = across[ay];
+                across[ay] = tmp;
             }
         }
     }
-    for (var x2 = 0; x2 < d_count - 1; x2++) {
-        for (var y2 = x2 + 1; y2 < d_count; y2++) {
-            if (down[y2].num < down[x2].num) {
-                var tmp2 = down[x2];
-                down[x2] = down[y2];
-                down[y2] = tmp2;
+    for (var dx = 0; dx < d_count - 1; dx++) {
+        for (var dy = dx + 1; dy < d_count; dy++) {
+            if (down[dy].num < down[dx].num) {
+                var tmp2 = down[dx];
+                down[dx] = down[dy];
+                down[dy] = tmp2;
             }
         }
     }

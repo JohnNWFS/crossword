@@ -66,6 +66,18 @@ function crossword_slot_word(slot_data) {
     }
     return word;
 }
+function crossword_csv_escape(val) {
+    var s = string(val);
+    // Escape quotes by doubling them. Wrap in quotes if the field contains a comma, quote, or newline.
+    if (string_pos("\"", s) > 0) {
+        s = string_replace_all(s, "\"", "\"\"");
+    }
+    if (string_pos(",", s) > 0 || string_pos("\"", s) > 0 || string_pos("\n", s) > 0 || string_pos("\r", s) > 0) {
+        s = "\"" + s + "\"";
+    }
+    return s;
+}
+
 
 function crossword_pattern_has_blank(pattern) {
     return string_pos("_", pattern) > 0;
@@ -332,6 +344,7 @@ function crossword_export_word_lists() {
         base_name = "grid_" + string(hb.grid_width) + "x" + string(hb.grid_height);
     }
 
+    // 1) Save the full puzzle grid as an INI (same as Save Template, but named as a puzzle export)
     var export_title = "puzzle_" + base_name + "_" + string(current_time);
     hb.save_template(export_title);
 
@@ -340,6 +353,64 @@ function crossword_export_word_lists() {
     var export_path = working_directory + export_file;
 
     show_debug_message("[Export] Puzzle grid saved as '" + export_title + "' file='" + export_file + "' path='" + export_path + "'");
+
+    // 2) Also write a CSV word list: Across first, then Down.
+    var slots = crossword_build_slots();
+    var across = [];
+    var down = [];
+    var a_count = 0;
+    var d_count = 0;
+
+    for (var i = 0; i < array_length(slots); i++) {
+        var s = slots[i];
+        var w = crossword_slot_word(s);
+        if (s.dir == "A") {
+            across[a_count++] = { num: s.num, word: w };
+        } else if (s.dir == "D") {
+            down[d_count++] = { num: s.num, word: w };
+        }
+    }
+
+    // Sort by clue number.
+    for (var x = 0; x < a_count - 1; x++) {
+        for (var y = x + 1; y < a_count; y++) {
+            if (across[y].num < across[x].num) {
+                var tmp = across[x];
+                across[x] = across[y];
+                across[y] = tmp;
+            }
+        }
+    }
+    for (var x2 = 0; x2 < d_count - 1; x2++) {
+        for (var y2 = x2 + 1; y2 < d_count; y2++) {
+            if (down[y2].num < down[x2].num) {
+                var tmp2 = down[x2];
+                down[x2] = down[y2];
+                down[y2] = tmp2;
+            }
+        }
+    }
+
+    var csv_file = "wordlist_" + safe_title + ".csv";
+    var csv_path = working_directory + csv_file;
+
+    var fh = file_text_open_write(csv_path);
+    if (fh == -1) {
+        show_debug_message("[Export] Failed to write word list CSV path='" + csv_path + "'");
+        return;
+    }
+
+    file_text_writeln(fh, "Direction,Number,Entry");
+
+    for (var ai = 0; ai < a_count; ai++) {
+        file_text_writeln(fh, "ACROSS," + string(across[ai].num) + "," + crossword_csv_escape(across[ai].word));
+    }
+    for (var di = 0; di < d_count; di++) {
+        file_text_writeln(fh, "DOWN," + string(down[di].num) + "," + crossword_csv_escape(down[di].word));
+    }
+
+    file_text_close(fh);
+    show_debug_message("[Export] Word list CSV saved file='" + csv_file + "' path='" + csv_path + "'");
 }
 function crossword_check_remaining_across_feasibility() {
     var slots = crossword_build_slots();
@@ -2019,6 +2090,7 @@ function crossword_solver_mark_fail_combo(slot_a, slot_b) {
     global.solver_fail_cells = cells;
     global.solver_fail_until = current_time + 500;
 }
+
 
 
 

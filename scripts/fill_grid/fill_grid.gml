@@ -400,13 +400,16 @@ function crossword_export_word_lists() {
         return;
     }
 
-    file_text_writeln(fh, "Direction,Number,Entry");
+    file_text_write_string(fh, "Direction,Number,Entry");
+    file_text_writeln(fh);
 
     for (var ai = 0; ai < a_count; ai++) {
-        file_text_writeln(fh, "ACROSS," + string(across[ai].num) + "," + crossword_csv_escape(across[ai].word));
+        file_text_write_string(fh, "ACROSS," + string(across[ai].num) + "," + crossword_csv_escape(across[ai].word));
+        file_text_writeln(fh);
     }
     for (var di = 0; di < d_count; di++) {
-        file_text_writeln(fh, "DOWN," + string(down[di].num) + "," + crossword_csv_escape(down[di].word));
+        file_text_write_string(fh, "DOWN," + string(down[di].num) + "," + crossword_csv_escape(down[di].word));
+        file_text_writeln(fh);
     }
 
     file_text_close(fh);

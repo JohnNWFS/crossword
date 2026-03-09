@@ -107,35 +107,40 @@ if (os_type == os_browser) {
 
 // Command: press ? then A or D, then click a cell to open the Close Possibilities picker
 if (!solver_active && !letter_entry_active && !template_list_overlay_active && !candidate_overlay_active) {
-    // ? on US keyboard is Shift+/
-    if (keyboard_check_pressed(ord("/")) && keyboard_check(vk_shift)) {
-        cmd_stage = 1;
-        global.cmd_mode = 0;
-        set_status("Command: type A or D");
+    // keyboard_lastchar works reliably for punctuation like "?" across platforms
+    var ch = keyboard_lastchar;
+    if (ch != "" && ch != cmd_lastchar) {
+        cmd_lastchar = ch;
+        var up = string_upper(ch);
+
+        if (cmd_stage == 0) {
+            if (ch == "?") {
+                cmd_stage = 1;
+                global.cmd_mode = 0;
+                set_status("Command: type A or D");
+            }
+        } else if (cmd_stage == 1) {
+            if (up == "A") {
+                cmd_stage = 2;
+                global.cmd_mode = 1;
+                set_status("Close possibilities armed: ?A (click a cell)");
+            } else if (up == "D") {
+                cmd_stage = 2;
+                global.cmd_mode = 2;
+                set_status("Close possibilities armed: ?D (click a cell)");
+            } else if (ch == "\u001b") {
+                cmd_stage = 0;
+                set_status("Command cancelled");
+            }
+        }
     }
 
-    if (cmd_stage == 1) {
-        if (keyboard_check_pressed(vk_escape)) {
-            cmd_stage = 0;
-            set_status("Command cancelled");
-        } else if (keyboard_check_pressed(ord("A"))) {
-            cmd_stage = 2;
-            global.cmd_mode = 1;
-            set_status("Close possibilities armed: ?A (click a cell)");
-        } else if (keyboard_check_pressed(ord("D"))) {
-            cmd_stage = 2;
-            global.cmd_mode = 2;
-            set_status("Close possibilities armed: ?D (click a cell)");
-        }
-    } else if (cmd_stage == 2) {
-        if (keyboard_check_pressed(vk_escape)) {
-            cmd_stage = 0;
-            global.cmd_mode = 0;
-            set_status("Command cancelled");
-        }
+    if ((cmd_stage == 1 || cmd_stage == 2) && keyboard_check_pressed(vk_escape)) {
+        cmd_stage = 0;
+        global.cmd_mode = 0;
+        set_status("Command cancelled");
     }
 }
-
 
 // Solver options panel (top-right)
 // Normal: all heuristics

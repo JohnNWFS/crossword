@@ -60,6 +60,7 @@ template_list_visible_count = 0;
 
 // Command / picker helpers (for ?A / ?D style commands)
 cmd_stage = 0; // 0=idle, 1=got ?, 2=armed
+cmd_lastchar = ""; // last processed keyboard_lastchar for command mode
 global.cmd_mode = 0; // 0=none, 1=?A (across), 2=?D (down)
 candidate_overlay_active = false;
 candidate_list_words = [];

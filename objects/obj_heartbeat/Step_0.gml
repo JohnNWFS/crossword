@@ -4,6 +4,70 @@ if (solver_active) {
     crossword_solver_tick();
 }
 
+// Help overlay interaction
+if (help_overlay_active) {
+    // Layout the help window in room-space coords (matches Draw).
+    var box_margin = 40;
+    var box_w = min(680, room_width - (box_margin * 2));
+    if (box_w < 320) box_w = room_width - 20;
+    var box_h = min(540, room_height - 120);
+    if (box_h < 240) box_h = room_height - 40;
+
+    help_box_w = box_w;
+    help_box_h = box_h;
+    help_box_x = floor((room_width - box_w) * 0.5);
+    help_box_y = floor((room_height - box_h) * 0.5);
+
+    var title_h = 34;
+    var footer_h = 34;
+    var content_top = help_box_y + title_h + 8;
+    var content_h = max(0, (help_box_y + box_h - footer_h - 8) - content_top);
+    help_visible_lines = max(1, floor(content_h / help_line_h));
+
+    var total_lines = is_array(help_lines) ? array_length(help_lines) : 0;
+    var max_scroll = max(0, total_lines - help_visible_lines);
+
+    // Keys
+    if (keyboard_check_pressed(vk_escape)) {
+        help_close();
+        exit;
+    }
+    if (keyboard_check_pressed(vk_pageup)) help_scroll -= help_visible_lines; // PgUp
+    if (keyboard_check_pressed(vk_pagedown)) help_scroll += help_visible_lines;  // PgDn
+    if (keyboard_check_pressed(vk_up)) help_scroll -= 1;
+    if (keyboard_check_pressed(vk_down)) help_scroll += 1;
+
+    // Mouse wheel
+    if (mouse_wheel_up()) help_scroll -= 2;
+    if (mouse_wheel_down()) help_scroll += 2;
+
+    // Click controls
+    if (mouse_check_button_pressed(mb_left)) {
+        // Close X
+        var close_w = 26;
+        var close_x1 = help_box_x + box_w - close_w - 8;
+        var close_y1 = help_box_y + 6;
+        if (point_in_rectangle(mouse_x, mouse_y, close_x1, close_y1, close_x1 + close_w, close_y1 + 22)) {
+            help_close();
+            exit;
+        }
+
+        // Scroll arrows on right
+        var sb_w = 22;
+        var sb_x1 = help_box_x + box_w - sb_w - 10;
+        var up_y1 = content_top;
+        var dn_y1 = (help_box_y + box_h - footer_h - 8) - sb_w;
+        if (point_in_rectangle(mouse_x, mouse_y, sb_x1, up_y1, sb_x1 + sb_w, up_y1 + sb_w)) {
+            help_scroll -= 1;
+        } else if (point_in_rectangle(mouse_x, mouse_y, sb_x1, dn_y1, sb_x1 + sb_w, dn_y1 + sb_w)) {
+            help_scroll += 1;
+        }
+    }
+
+    help_scroll = clamp(help_scroll, 0, max_scroll);
+    exit;
+}
+
 if (template_list_overlay_active) {
     if (keyboard_check_pressed(vk_escape)) {
         template_list_overlay_active = false;
@@ -11,16 +75,89 @@ if (template_list_overlay_active) {
         exit;
     }
 
+    // Layout in GUI-space (matches Draw)
+    var gui_w = display_get_gui_width();
+    var gui_h = display_get_gui_height();
+    if (gui_w <= 0) gui_w = room_width;
+    if (gui_h <= 0) gui_h = room_height;
+
+    var mx = mouse_x;
+    var my = mouse_y;
+    if (gui_w > 0 && gui_h > 0 && (gui_w != room_width || gui_h != room_height)) {
+        mx = device_mouse_x_to_gui(0);
+        my = device_mouse_y_to_gui(0);
+    }
+
+    var box_margin = 48;
+    var box_w = min(560, gui_w - (box_margin * 2));
+    if (box_w < 320) box_w = gui_w - 20;
+
+    var title_h = 34;
+    var footer_h = 34;
+    var content_h = max(0, (gui_h - 220));
+    var max_rows = floor((content_h - footer_h) / template_list_row_h);
+    if (max_rows < 4) max_rows = 4;
+
+    var total_rows = array_length(template_list_names);
+    template_list_visible_count = min(total_rows, max_rows);
+    template_list_max_scroll = max(0, total_rows - template_list_visible_count);
+    template_list_scroll = clamp(template_list_scroll, 0, template_list_max_scroll);
+
+    var box_h = title_h + 14 + (template_list_visible_count * template_list_row_h) + footer_h + 12;
+    template_list_box_x = floor((gui_w - box_w) * 0.5);
+    template_list_box_y = floor((gui_h - box_h) * 0.5);
+    template_list_box_w = box_w;
+    template_list_box_h = box_h;
+    template_list_first_row_y = template_list_box_y + title_h + 14;
+
+    // Keyboard scroll
+    if (keyboard_check_pressed(vk_pageup)) template_list_scroll -= template_list_visible_count;
+    if (keyboard_check_pressed(vk_pagedown)) template_list_scroll += template_list_visible_count;
+    if (keyboard_check_pressed(vk_up)) template_list_scroll -= 1;
+    if (keyboard_check_pressed(vk_down)) template_list_scroll += 1;
+
+    // Mouse wheel
+    if (mouse_wheel_up()) template_list_scroll -= 2;
+    if (mouse_wheel_down()) template_list_scroll += 2;
+
+    template_list_scroll = clamp(template_list_scroll, 0, template_list_max_scroll);
+
     var click_left = mouse_check_button_pressed(mb_left);
     var click_right = mouse_check_button_pressed(mb_right);
     var click_middle = mouse_check_button_pressed(mb_middle);
     if (click_left || click_right || click_middle) {
+        // Close X
+        var close_w = 26;
+        var close_x1 = template_list_box_x + box_w - close_w - 8;
+        var close_y1 = template_list_box_y + 6;
+        if (click_left && point_in_rectangle(mx, my, close_x1, close_y1, close_x1 + close_w, close_y1 + 22)) {
+            template_list_overlay_active = false;
+            set_status("Template picker closed");
+            exit;
+        }
+
+        // Scroll arrows (right side)
+        var sb_w = 22;
+        var sb_x1 = template_list_box_x + box_w - sb_w - 10;
+        var up_y1 = template_list_first_row_y;
+        var dn_y1 = (template_list_box_y + box_h - footer_h - 10) - sb_w;
+        if (click_left && point_in_rectangle(mx, my, sb_x1, up_y1, sb_x1 + sb_w, up_y1 + sb_w)) {
+            template_list_scroll = clamp(template_list_scroll - 1, 0, template_list_max_scroll);
+            exit;
+        }
+        if (click_left && point_in_rectangle(mx, my, sb_x1, dn_y1, sb_x1 + sb_w, dn_y1 + sb_w)) {
+            template_list_scroll = clamp(template_list_scroll + 1, 0, template_list_max_scroll);
+            exit;
+        }
+
+        // Click a row to load
         if (click_left
-            && point_in_rectangle(mouse_x, mouse_y, template_list_box_x, template_list_first_row_y,
-                template_list_box_x + template_list_box_w, template_list_box_y + template_list_box_h)
-            && array_length(template_list_names) > 0) {
-            var idx = floor((mouse_y - template_list_first_row_y) / template_list_row_h);
-            if (idx >= 0 && idx < template_list_visible_count) {
+            && point_in_rectangle(mx, my, template_list_box_x, template_list_first_row_y,
+                template_list_box_x + box_w, template_list_first_row_y + (template_list_visible_count * template_list_row_h))
+            && total_rows > 0) {
+            var rel = floor((my - template_list_first_row_y) / template_list_row_h);
+            var idx = template_list_scroll + rel;
+            if (idx >= 0 && idx < total_rows) {
                 var chosen = template_list_names[idx];
                 template_list_overlay_active = false;
                 load_template(chosen);
@@ -28,9 +165,12 @@ if (template_list_overlay_active) {
             }
         }
 
-        template_list_overlay_active = false;
-        set_status("Template picker closed");
-        exit;
+        // Click outside closes
+        if (!point_in_rectangle(mx, my, template_list_box_x, template_list_box_y, template_list_box_x + box_w, template_list_box_y + box_h)) {
+            template_list_overlay_active = false;
+            set_status("Template picker closed");
+            exit;
+        }
     }
 
     exit;
@@ -39,9 +179,7 @@ if (template_list_overlay_active) {
 
 if (candidate_overlay_active) {
     if (keyboard_check_pressed(vk_escape)) {
-        candidate_overlay_active = false;
-        candidate_list_words = [];
-        candidate_slot_data = undefined;
+        candidate_picker_close();
         set_status("Picker closed");
         exit;
     }
@@ -49,12 +187,95 @@ if (candidate_overlay_active) {
     var click_left = mouse_check_button_pressed(mb_left);
     var click_right = mouse_check_button_pressed(mb_right);
     var click_middle = mouse_check_button_pressed(mb_middle);
+
+    // Use GUI-space mouse coords for this overlay (Draw uses GUI size/coords)
+    var gui_w = display_get_gui_width();
+    var gui_h = display_get_gui_height();
+    var mx = mouse_x;
+    var my = mouse_y;
+    if (gui_w > 0 && gui_h > 0 && (gui_w != room_width || gui_h != room_height)) {
+        mx = device_mouse_x_to_gui(0);
+        my = device_mouse_y_to_gui(0);
+    }
+
+    // Footer controls (only when there are lots of candidates)
+    if (click_left && candidate_list_total_all > candidate_page_size) {
+        var btn_h = 20;
+        var btn_w = 44;
+        var btn_gap = 8;
+        var close_w = 24;
+        var footer_h = 78;
+
+        var footer_top = candidate_list_box_y + candidate_list_box_h - footer_h;
+        var nav_y = candidate_list_box_y + candidate_list_box_h - btn_h - 10;
+        var right = candidate_list_box_x + candidate_list_box_w - 10;
+
+        var x_close = right - close_w;
+        var x_new = x_close - btn_gap - btn_w;
+        var x_next = x_new - btn_gap - btn_w;
+        var x_prev = x_next - btn_gap - btn_w;
+
+        if (point_in_rectangle(mx, my, x_prev, nav_y, x_prev + btn_w, nav_y + btn_h)) {
+            candidate_page -= 1;
+            if (candidate_page < 0) candidate_page = candidate_pages - 1;
+            candidate_picker_apply_page();
+            set_status("Picker page " + string(candidate_page + 1) + "/" + string(candidate_pages));
+            exit;
+        }
+        if (point_in_rectangle(mx, my, x_next, nav_y, x_next + btn_w, nav_y + btn_h)) {
+            candidate_page += 1;
+            if (candidate_page >= candidate_pages) candidate_page = 0;
+            candidate_picker_apply_page();
+            set_status("Picker page " + string(candidate_page + 1) + "/" + string(candidate_pages));
+            exit;
+        }
+        if (point_in_rectangle(mx, my, x_new, nav_y, x_new + btn_w, nav_y + btn_h)) {
+            candidate_page = irandom(candidate_pages - 1);
+            candidate_picker_apply_page();
+            set_status("Picker shuffled (page " + string(candidate_page + 1) + "/" + string(candidate_pages) + ")");
+            exit;
+        }
+        if (point_in_rectangle(mx, my, x_close, nav_y, x_close + close_w, nav_y + btn_h)) {
+            candidate_picker_close();
+            set_status("Picker closed");
+            exit;
+        }
+
+        // Alphabet filter (A-Z in two rows)
+        var alpha_cols = 13;
+        var alpha_gap = 2;
+        var alpha_size = floor((candidate_list_box_w - 24 - (alpha_gap * (alpha_cols - 1))) / alpha_cols);
+        alpha_size = clamp(alpha_size, 12, 18);
+        var alpha_total_w = (alpha_cols * alpha_size) + (alpha_gap * (alpha_cols - 1));
+        var alpha_x0 = candidate_list_box_x + floor((candidate_list_box_w - alpha_total_w) * 0.5);
+        var alpha_y0 = footer_top + 8;
+
+        if (point_in_rectangle(mx, my, alpha_x0, alpha_y0, alpha_x0 + alpha_total_w, alpha_y0 + (2 * (alpha_size + alpha_gap)) - alpha_gap)) {
+            var relx = mx - alpha_x0;
+            var rely = my - alpha_y0;
+            var col = floor(relx / (alpha_size + alpha_gap));
+            var row = floor(rely / (alpha_size + alpha_gap));
+            if (col >= 0 && col < 13 && row >= 0 && row < 2) {
+                var idx = (row * 13) + col;
+                if (idx >= 0 && idx < 26) {
+                    var ch = chr(ord("A") + idx);
+                    if (candidate_picker_set_filter(ch)) {
+                        set_status("Jump " + ch + " (page " + string(candidate_page + 1) + "/" + string(candidate_pages) + ")");
+                    } else {
+                        set_status("No words for " + ch);
+                    }
+                    exit;
+                }
+            }
+        }
+    }
+
     if (click_left || click_right || click_middle) {
         if (click_left
-            && point_in_rectangle(mouse_x, mouse_y, candidate_list_box_x, candidate_list_first_row_y,
-                candidate_list_box_x + candidate_list_box_w, candidate_list_box_y + candidate_list_box_h)
+            && point_in_rectangle(mx, my, candidate_list_box_x, candidate_list_first_row_y,
+                candidate_list_box_x + candidate_list_box_w, candidate_list_first_row_y + (candidate_list_visible_count * candidate_list_row_h))
             && array_length(candidate_list_words) > 0) {
-            var idx = floor((mouse_y - candidate_list_first_row_y) / candidate_list_row_h);
+            var idx = floor((my - candidate_list_first_row_y) / candidate_list_row_h);
             if (idx >= 0 && idx < candidate_list_visible_count) {
                 var chosen = candidate_list_words[idx];
                 var sd = candidate_slot_data;
@@ -68,16 +289,12 @@ if (candidate_overlay_active) {
                     }
                     set_status("Applied " + string(sd.num) + sd.dir + "=" + chosen);
                 }
-                candidate_overlay_active = false;
-                candidate_list_words = [];
-                candidate_slot_data = undefined;
+                candidate_picker_close();
                 exit;
             }
         }
 
-        candidate_overlay_active = false;
-        candidate_list_words = [];
-        candidate_slot_data = undefined;
+        candidate_picker_close();
         set_status("Picker closed");
         exit;
     }
@@ -104,6 +321,12 @@ if (global.mobile_layout != mobile_layout_prev) {
 if (os_type == os_browser) {
     display_set_gui_maximize();
 }
+
+// UI layout (panel visibility affects grid sizing + bottom buttons)
+ui_recalc_layout();
+update_cell_size();
+ui_layout_bottom_buttons();
+
 
 // Command: press ? then A or D, then click a cell to open the Close Possibilities picker
 if (!solver_active && !letter_entry_active && !template_list_overlay_active && !candidate_overlay_active) {
@@ -142,125 +365,155 @@ if (!solver_active && !letter_entry_active && !template_list_overlay_active && !
     }
 }
 
-// Solver options panel (top-right)
-// Normal: all heuristics
-// Relaxed: fewer heuristics
-// Brute: ignore heuristics and randomize candidate order
-var opt_x = room_width - 230;
-var opt_y = 92;
-var opt_w = 220;
-var opt_h = 22;
-var opt_panel_h = global.mobile_layout ? 334 : 308;
-var opt_row0_y = opt_y + 22;
 
-if (mouse_check_button_pressed(mb_left)) {
-    // Method radios (rows are below the "Solver Method" header)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y, opt_x + opt_w, opt_row0_y + opt_h)) {
-        global.solver_mode = 0;
-        global.brute_burst_remaining = 0;
-        status_text = "Solver method: Normal";
-        exit;
-    }
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 26, opt_x + opt_w, opt_row0_y + 26 + opt_h)) {
-        global.solver_mode = 1;
-        global.brute_burst_remaining = 0;
-        status_text = "Solver method: Relaxed";
-        exit;
-    }
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 52, opt_x + opt_w, opt_row0_y + 52 + opt_h)) {
-        global.solver_mode = 2;
-        global.brute_burst_remaining = 0;
-        status_text = "Solver method: Brute";
+// Help button + Settings panel interaction (right side)
+// Uses ui_rows hitboxes so clicks always match what is drawn.
+if (mouse_check_button_pressed(mb_left) && !template_list_overlay_active && !candidate_overlay_active) {
+    // Help icon (upper-right)
+    help_btn_w = 24;
+    help_btn_h = 24;
+    help_btn_x = room_width - padding - help_btn_w;
+    help_btn_y = 24;
+    if (point_in_rectangle(mouse_x, mouse_y, help_btn_x, help_btn_y, help_btn_x + help_btn_w, help_btn_y + help_btn_h)) {
+        // Close other overlays just in case
+        candidate_picker_close();
+        template_list_overlay_active = false;
+        help_open();
         exit;
     }
 
-    // Brute burst + ROI share the last row (matches Draw)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 78, opt_x + 110, opt_row0_y + 78 + opt_h)) {
-        global.brute_burst_remaining = 200;
-        status_text = "Brute burst: 200 placements";
-        exit;
-    }
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x + 110, opt_row0_y + 78, opt_x + opt_w, opt_row0_y + 78 + opt_h)) {
-        global.roi_fill_enabled = !global.roi_fill_enabled;
-        status_text = global.roi_fill_enabled ? "ROI fill enabled (Alt+click grid to move ROI)" : "ROI fill disabled";
-        exit;
-    }
-    // ROI size toggle (5x5 <-> 7x7)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 104, opt_x + opt_w, opt_row0_y + 104 + opt_h)) {
-        if (!variable_global_exists("roi_default_size")) global.roi_default_size = 5;
-        global.roi_default_size = (global.roi_default_size == 7) ? 5 : 7;
-        global.roi_w = global.roi_default_size;
-        global.roi_h = global.roi_default_size;
-        global.roi_x = clamp(global.roi_x, 0, max(0, grid_width - global.roi_w));
-        global.roi_y = clamp(global.roi_y, 0, max(0, grid_height - global.roi_h));
-        status_text = "ROI size set to " + string(global.roi_w) + "x" + string(global.roi_h);
-        exit;
-    }
-    // Stall restart toggle (helps large grids escape long stalls)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 130, opt_x + opt_w, opt_row0_y + 130 + opt_h)) {
-        if (!variable_global_exists("stall_restart_enabled")) global.stall_restart_enabled = false;
-        global.stall_restart_enabled = !global.stall_restart_enabled;
-        status_text = global.stall_restart_enabled ? "Stall restart enabled" : "Stall restart disabled";
-        exit;
+    // Mobile: small settings toggle button so the grid can use full width
+    if (global.mobile_layout) {
+        var set_x = help_btn_x - 30;
+        var set_y = help_btn_y;
+        var set_w = 24;
+        var set_h = 24;
+        if (point_in_rectangle(mouse_x, mouse_y, set_x, set_y, set_x + set_w, set_y + set_h)) {
+            ui_settings_open_mobile = !ui_settings_open_mobile;
+            set_status(ui_settings_open_mobile ? "Settings opened" : "Settings hidden");
+            exit;
+        }
     }
 
-    // Vocab mode cycle (common-first -> common-only -> full)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 156, opt_x + opt_w, opt_row0_y + 156 + opt_h)) {
-        global.fill_vocab_mode = (global.fill_vocab_mode + 1) mod 3;
-        status_text = "Vocab mode set to " + string(global.fill_vocab_mode);
-        exit;
-    }
+    // Ensure row geometry is current for this frame.
+    ui_recalc_layout();
 
-    // Commonness scoring toggle (affects ranking within candidate lists)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 182, opt_x + opt_w, opt_row0_y + 182 + opt_h)) {
-        global.commonness_bias_enabled = !global.commonness_bias_enabled;
-        status_text = global.commonness_bias_enabled ? "Commonness scoring enabled" : "Commonness scoring disabled";
-        exit;
-    }
+    if (ui_panel_visible && point_in_rectangle(mouse_x, mouse_y, ui_panel_x, ui_panel_y, ui_panel_x + ui_panel_w, ui_panel_y + ui_panel_h)) {
+        var mode = variable_global_exists("solver_mode") ? global.solver_mode : 0;
 
+        for (var i = 0; i < ui_rows_count; i++) {
+            var r = ui_rows[i];
+            if (!point_in_rectangle(mouse_x, mouse_y, r.x1, r.y1, r.x2, r.y2)) continue;
 
-    // Mobile-only: toggle between block editing and letter entry (Shift is not available on touch)
-    if (global.mobile_layout
-        && point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 286, opt_x + opt_w, opt_row0_y + 286 + opt_h)) {
-        global.edit_mode = 1 - global.edit_mode;
-        status_text = (global.edit_mode == 1) ? "Edit mode: Letters" : "Edit mode: Blocks";
-        exit;
-    }
+            // Header row: no action
+            if (r.kind == "header") exit;
 
-    // Immutables: Strict / Soft / Off (only affects user-seeded letters)
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 208, opt_x + opt_w, opt_row0_y + 208 + opt_h)) {
-        if (!variable_global_exists("immutables_mode")) global.immutables_mode = 0;
-        global.immutables_mode = (global.immutables_mode + 1) mod 3;
-        status_text = "Immutables mode set to " + string(global.immutables_mode);
-        exit;
-    }
+            if (r.id == "method") {
+                var sx1 = r.x1 + 78;
+                var sx2 = r.x2;
+                if (mouse_x >= sx1 && mouse_x <= sx2) {
+                    var seg_w = (sx2 - sx1) / 3;
+                    var s = floor((mouse_x - sx1) / max(1, seg_w));
+                    s = clamp(s, 0, 2);
+                    global.solver_mode = s;
+                    global.brute_burst_remaining = 0;
+                    set_status("Solver method: " + ((s == 0) ? "Normal" : ((s == 1) ? "Relaxed" : "Brute")));
+                }
+                exit;
+            }
 
-    // Feasibility check: scan all slots and confirm each has a dictionary match (or at least one candidate).
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 234, opt_x + opt_w, opt_row0_y + 234 + opt_h)) {
-        crossword_check_grid_feasibility();
-        exit;
-    }
+            if (r.id == "immutables") {
+                if (!variable_global_exists("immutables_mode")) global.immutables_mode = 0;
+                global.immutables_mode = (global.immutables_mode + 1) mod 3;
+                set_status("Immutables: " + ((global.immutables_mode == 0) ? "Strict" : ((global.immutables_mode == 1) ? "Soft" : "Off")));
+                exit;
+            }
 
-    // Close possibilities command (cycles OFF -> ?A -> ?D). Then click a cell to open a picker.
-    if (point_in_rectangle(mouse_x, mouse_y, opt_x, opt_row0_y + 260, opt_x + opt_w, opt_row0_y + 260 + opt_h)) {
-        global.cmd_mode = (global.cmd_mode + 1) mod 3;
-        cmd_stage = 0;
-        status_text = (global.cmd_mode == 0) ? "Close possibilities: OFF" : ((global.cmd_mode == 1) ? "Close possibilities: ?A" : "Close possibilities: ?D");
-        exit;
-    }
-    // Manual long-slot gate controls (moved to right column under solver panel)
-    var gate_y = opt_y + opt_panel_h + 12;
-    var gate_prev_x = opt_x;
-    var gate_next_x = opt_x + opt_w - 24;
-    if (point_in_rectangle(mouse_x, mouse_y, gate_prev_x, gate_y, gate_prev_x + 24, gate_y + 24)) {
-        set_long_gate_index(long_gate_index - 1);
-        exit;
-    }
-    if (point_in_rectangle(mouse_x, mouse_y, gate_next_x, gate_y, gate_next_x + 24, gate_y + 24)) {
-        set_long_gate_index(long_gate_index + 1);
+            if (r.id == "gate") {
+                var btn = 22;
+                var btn_gap = 4;
+                var buttons_w = (btn * 2) + btn_gap;
+                var bx0 = r.x2 - buttons_w;
+                var bx1 = bx0 + btn + btn_gap;
+
+                if (point_in_rectangle(mouse_x, mouse_y, bx0, r.y1 + 1, bx0 + btn, r.y2 - 1)) {
+                    set_long_gate_index(long_gate_index - 1);
+                } else if (point_in_rectangle(mouse_x, mouse_y, bx1, r.y1 + 1, bx1 + btn, r.y2 - 1)) {
+                    set_long_gate_index(long_gate_index + 1);
+                }
+                exit;
+            }
+
+            if (r.id == "closeposs") {
+                global.cmd_mode = (global.cmd_mode + 1) mod 3;
+                cmd_stage = 0;
+                set_status((global.cmd_mode == 0) ? "Close words: OFF" : ((global.cmd_mode == 1) ? "Close words: ?A" : "Close words: ?D"));
+                exit;
+            }
+
+            if (r.id == "check") {
+                crossword_check_grid_feasibility();
+                exit;
+            }
+
+            if (r.id == "advanced") {
+                ui_advanced_open = !ui_advanced_open;
+                set_status(ui_advanced_open ? "Advanced settings opened" : "Advanced settings closed");
+                exit;
+            }
+
+            // Advanced-only rows below are only present in ui_rows when Advanced is open.
+            if (r.id == "roi") {
+                if (!variable_global_exists("roi_fill_enabled")) global.roi_fill_enabled = false;
+                global.roi_fill_enabled = !global.roi_fill_enabled;
+                set_status(global.roi_fill_enabled ? "ROI chunk fill enabled (Alt+click grid to move ROI)" : "ROI chunk fill disabled");
+                exit;
+            }
+
+            if (r.id == "roisize") {
+                if (!variable_global_exists("roi_default_size")) global.roi_default_size = 5;
+                global.roi_default_size = (global.roi_default_size == 7) ? 5 : 7;
+                global.roi_w = global.roi_default_size;
+                global.roi_h = global.roi_default_size;
+                global.roi_x = clamp(global.roi_x, 0, max(0, grid_width - global.roi_w));
+                global.roi_y = clamp(global.roi_y, 0, max(0, grid_height - global.roi_h));
+                set_status("ROI size set to " + string(global.roi_w) + "x" + string(global.roi_h));
+                exit;
+            }
+
+            if (r.id == "stall") {
+                if (!variable_global_exists("stall_restart_enabled")) global.stall_restart_enabled = false;
+                global.stall_restart_enabled = !global.stall_restart_enabled;
+                set_status(global.stall_restart_enabled ? "Stall restart enabled" : "Stall restart disabled");
+                exit;
+            }
+
+            if (r.id == "vocab") {
+                if (!variable_global_exists("fill_vocab_mode")) global.fill_vocab_mode = 0;
+                global.fill_vocab_mode = (global.fill_vocab_mode + 1) mod 3;
+                set_status("Vocab: " + ((global.fill_vocab_mode == 0) ? "common-first" : ((global.fill_vocab_mode == 1) ? "common-only" : "full")));
+                exit;
+            }
+
+            if (r.id == "commonness") {
+                if (!variable_global_exists("commonness_bias_enabled")) global.commonness_bias_enabled = true;
+                global.commonness_bias_enabled = !global.commonness_bias_enabled;
+                set_status(global.commonness_bias_enabled ? "Commonness score ON" : "Commonness score OFF");
+                exit;
+            }
+
+            if (r.id == "bruteburst") {
+                if (!variable_global_exists("brute_burst_remaining")) global.brute_burst_remaining = 0;
+                global.brute_burst_remaining = (global.brute_burst_remaining <= 0) ? 200 : 0;
+                set_status("Brute burst: " + string(global.brute_burst_remaining));
+                exit;
+            }
+        }
+
         exit;
     }
 }
+
 if (mouse_check_button_pressed(mb_left)) {
     if (point_in_rectangle(mouse_x, mouse_y, size_prev_x, size_prev_y, size_prev_x + size_prev_w, size_prev_y + size_prev_h)) {
         if (current_size_index > 0) {
@@ -345,12 +598,13 @@ if (mouse_check_button_pressed(mb_left)
             if (is_undefined(found)) {
                 set_status("No slot found at that cell");
             } else {
-                var res = crossword_collect_close_possibilities(found, 10);
+                // Collect a larger pool so paging + A-Z filtering works (the popup still shows 10 per page).
+                var res = crossword_collect_close_possibilities(found, 240);
                 candidate_slot_data = found;
                 candidate_slot_pattern = res.pattern;
-                candidate_list_words = res.words;
-                candidate_overlay_active = (array_length(candidate_list_words) > 0);
-                if (!candidate_overlay_active) {
+                if (array_length(res.words) > 0) {
+                    candidate_picker_open(res.words);
+                } else {
                     set_status("No suggestions for " + string(found.num) + found.dir + " pattern=" + res.pattern);
                 }
             }
@@ -419,6 +673,7 @@ if (mouse_check_button_pressed(mb_right)
         }
     }
 }
+
 
 
 

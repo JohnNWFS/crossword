@@ -7,5 +7,6 @@ if (hb == noone) {
 }
 
 hb.refresh_template_name_list();
+hb.template_list_scroll = 0;
 hb.template_list_overlay_active = true;
 hb.set_status("Template picker open (right-click Load Template)");

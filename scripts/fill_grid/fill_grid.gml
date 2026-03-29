@@ -532,27 +532,38 @@ function crossword_collect_close_possibilities(slot_data, max_out) {
     var l_count = 0;
     var collect_cap = 240; // keep it snappy; we only need a few suggestions
 
+    // Important rule for puzzle-making UX:
+    // If the first character is already set (e.g. "SE_"), only suggest strict pattern matches.
+    // Loose matches are only useful when the entry begins blank.
+    var strict_only = (string_length(pattern) > 0 && string_char_at(pattern, 1) != "_");
+
+    // Phase 1: collect strict matches (scan until strict is full)
     for (var b = 0; b < bucket_count; b++) {
         var w = bucket[| b];
-        // strict: matches the exact known letters by position
         if (crossword_word_matches_pattern(w, pattern)) {
             strict[s_count++] = w;
-        } else if (fixed_count > 0) {
-            // loose: shares at least min_shared letters anywhere with the existing letters in this slot
+            if (s_count >= collect_cap) break;
+        }
+    }
+
+    // Phase 2: optionally collect loose matches (only when the first character is blank)
+    if (!strict_only && fixed_count > 0) {
+        for (var b2 = 0; b2 < bucket_count; b2++) {
+            var w2 = bucket[| b2];
+            if (crossword_word_matches_pattern(w2, pattern)) continue;
+
             var shared = 0;
             for (var k = 1; k <= string_length(fixed_letters); k++) {
                 var fl = string_char_at(fixed_letters, k);
-                if (string_pos(fl, w) > 0) shared++;
+                if (string_pos(fl, w2) > 0) shared++;
                 if (shared >= min_shared) break;
             }
             if (shared >= min_shared) {
-                loose[l_count++] = w;
+                loose[l_count++] = w2;
+                if (s_count + l_count >= collect_cap) break;
             }
         }
-
-        if (s_count + l_count >= collect_cap) break;
     }
-
     if (array_length(strict) > 1) array_shuffle(strict);
     if (array_length(loose) > 1) array_shuffle(loose);
 
@@ -1712,7 +1723,9 @@ function crossword_solver_tick() {
         if (first_choice.state == "dead") {
             obj_heartbeat.status_text = "Visual solver failed at root";
             if (!is_undefined(first_choice.failed_slot)) {
-                crossword_solver_mark_fail(first_choice.failed_slot);
+                // Highlight the failing slot. Use the combo highlighter directly to avoid
+                // any ambiguity with function name resolution on some targets.
+                crossword_solver_mark_fail_combo(first_choice.failed_slot, undefined);
                 obj_heartbeat.status_text = "Root dead-end -> " + crossword_solver_slot_label(first_choice.failed_slot)
                     + " " + first_choice.failed_pattern + " (0 candidates)";
             }
@@ -2250,6 +2263,13 @@ function crossword_solver_mark_fail_combo(slot_a, slot_b) {
     global.solver_fail_cells = cells;
     global.solver_fail_until = current_time + 500;
 }
+
+function crossword_solver_mark_fail(slot_a) {
+    // Root-level dead ends only have one slot to highlight.
+    crossword_solver_mark_fail_combo(slot_a, undefined);
+}
+
+
 
 
 

@@ -831,13 +831,13 @@ if (word_file == "") {
                     psmap = global.prefixSetByLength[? pskey];
                 }
                 var ps_max = wlen - 1;
-                var pi = 2;
+                var pfx_len = 2;
                 repeat (ps_max - 1) {
-                    var pfx = string_copy(word, 1, pi);
+                    var pfx = string_copy(word, 1, pfx_len);
                     if (!ds_map_exists(psmap, pfx)) {
                         ds_map_add(psmap, pfx, true);
                     }
-                    pi++;
+                    pfx_len++;
                 }
             }
         }

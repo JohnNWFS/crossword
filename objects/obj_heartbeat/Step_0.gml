@@ -463,6 +463,13 @@ if (mouse_check_button_pressed(mb_left) && !template_list_overlay_active && !can
             }
 
             // Advanced-only rows below are only present in ui_rows when Advanced is open.
+            if (r.id == "fastmode") {
+                if (!variable_global_exists("fill_fast_mode")) global.fill_fast_mode = false;
+                global.fill_fast_mode = !global.fill_fast_mode;
+                set_status(global.fill_fast_mode ? "Fast fill ON (no backtrack delay)" : "Fast fill OFF (visual delay restored)");
+                exit;
+            }
+
             if (r.id == "roi") {
                 if (!variable_global_exists("roi_fill_enabled")) global.roi_fill_enabled = false;
                 global.roi_fill_enabled = !global.roi_fill_enabled;

@@ -1568,7 +1568,8 @@ function crossword_solver_schedule_reject(vs, frame_idx, failed_slot_data, reaso
 
     vs.pending_remove = true;
     vs.pending_frame_idx = frame_idx;
-    vs.wait_until = current_time + 500;
+    var reject_delay = (variable_global_exists("fill_fast_mode") && global.fill_fast_mode) ? 0 : 500;
+    vs.wait_until = current_time + reject_delay;
 }
 function crossword_solver_handle_pending_remove(vs) {
     if (!vs.pending_remove || current_time < vs.wait_until) {
@@ -2261,7 +2262,8 @@ function crossword_solver_mark_fail_combo(slot_a, slot_b) {
     }
 
     global.solver_fail_cells = cells;
-    global.solver_fail_until = current_time + 500;
+    var fail_flash_delay = (variable_global_exists("fill_fast_mode") && global.fill_fast_mode) ? 0 : 500;
+    global.solver_fail_until = current_time + fail_flash_delay;
 }
 
 function crossword_solver_mark_fail(slot_a) {

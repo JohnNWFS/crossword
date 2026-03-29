@@ -405,6 +405,9 @@ global.roi_w = 5;
 global.roi_h = 5;
 global.roi_default_size = 5;
 
+// Fast fill: skip the 500ms visual delay on each backtrack (default OFF so the animation is still visible)
+global.fill_fast_mode = false;
+
 // Optional: restart search if the solver stalls for a long time (useful on 11x11+)
 global.stall_restart_enabled = false;
 global.stall_restart_ms = 15000;
@@ -504,6 +507,7 @@ ui_recalc_layout = function() {
     add_row("advanced", "toggle", "Advanced");
 
     if (ui_advanced_open) {
+        add_row("fastmode", "toggle", "Fast fill");
         add_row("roi", "toggle", "ROI chunk fill");
         add_row("roisize", "cycle", "ROI size");
         add_row("stall", "toggle", "Stall restart");

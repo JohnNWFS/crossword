@@ -825,6 +825,11 @@ if (ui_panel_visible) {
         } else if (r.id == "advanced") {
             var adv = ui_advanced_open ? "ON" : "OFF";
             draw_text(r.x2 - string_width(adv), r.y1 + 2, adv);
+        } else if (r.id == "fastmode") {
+            var fm = (variable_global_exists("fill_fast_mode") && global.fill_fast_mode);
+            var fmv = fm ? "ON" : "OFF";
+            draw_set_color(fm ? c_lime : c_white);
+            draw_text(r.x2 - string_width(fmv), r.y1 + 2, fmv);
         } else if (r.id == "roi") {
             var on = (variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled);
             var v = on ? "ON" : "OFF";

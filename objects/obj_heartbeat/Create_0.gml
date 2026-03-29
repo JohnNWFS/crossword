@@ -409,6 +409,10 @@ global.roi_default_size = 5;
 // Fast fill: skip the 500ms visual delay on each backtrack (default OFF so the animation is still visible)
 global.fill_fast_mode = false;
 
+// Ticks per frame: how many solver steps to run each game step (default 10 = 10x throughput vs original 1)
+global.fill_ticks_per_frame = 10;
+fill_ticks_options = [1, 5, 10, 20, 50];
+
 // Optional: restart search if the solver stalls for a long time (useful on 11x11+)
 global.stall_restart_enabled = false;
 global.stall_restart_ms = 15000;
@@ -509,6 +513,7 @@ ui_recalc_layout = function() {
 
     if (ui_advanced_open) {
         add_row("fastmode", "toggle", "Fast fill");
+        add_row("ticksperframe", "cycle", "Ticks/frame");
         add_row("roi", "toggle", "ROI chunk fill");
         add_row("roisize", "cycle", "ROI size");
         add_row("stall", "toggle", "Stall restart");

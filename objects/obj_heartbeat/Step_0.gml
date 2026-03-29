@@ -1,7 +1,10 @@
 // Step Event for obj_heartbeat
 
 if (solver_active) {
-    crossword_solver_tick();
+    var _ticks = variable_global_exists("fill_ticks_per_frame") ? global.fill_ticks_per_frame : 1;
+    for (var _t = 0; _t < _ticks && solver_active; _t++) {
+        crossword_solver_tick();
+    }
 }
 
 // Help overlay interaction
@@ -467,6 +470,19 @@ if (mouse_check_button_pressed(mb_left) && !template_list_overlay_active && !can
                 if (!variable_global_exists("fill_fast_mode")) global.fill_fast_mode = false;
                 global.fill_fast_mode = !global.fill_fast_mode;
                 set_status(global.fill_fast_mode ? "Fast fill ON (no backtrack delay)" : "Fast fill OFF (visual delay restored)");
+                exit;
+            }
+
+            if (r.id == "ticksperframe") {
+                var _opts = fill_ticks_options;
+                var _cur = variable_global_exists("fill_ticks_per_frame") ? global.fill_ticks_per_frame : 1;
+                var _idx = 0;
+                for (var _i = 0; _i < array_length(_opts); _i++) {
+                    if (_opts[_i] == _cur) { _idx = _i; break; }
+                }
+                _idx = (_idx + 1) mod array_length(_opts);
+                global.fill_ticks_per_frame = _opts[_idx];
+                set_status("Ticks/frame: " + string(global.fill_ticks_per_frame));
                 exit;
             }
 

@@ -830,6 +830,11 @@ if (ui_panel_visible) {
             var fmv = fm ? "ON" : "OFF";
             draw_set_color(fm ? c_lime : c_white);
             draw_text(r.x2 - string_width(fmv), r.y1 + 2, fmv);
+        } else if (r.id == "ticksperframe") {
+            var tpf = variable_global_exists("fill_ticks_per_frame") ? global.fill_ticks_per_frame : 1;
+            var tpfv = string(tpf);
+            draw_set_color(tpf > 1 ? c_lime : c_white);
+            draw_text(r.x2 - string_width(tpfv), r.y1 + 2, tpfv);
         } else if (r.id == "roi") {
             var on = (variable_global_exists("roi_fill_enabled") && global.roi_fill_enabled);
             var v = on ? "ON" : "OFF";

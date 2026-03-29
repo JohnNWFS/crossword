@@ -7,33 +7,417 @@ grid_height = grid_size_options[current_size_index];
 
 cell_size = 32;
 padding = 64;
+layout_bottom_reserved = 220;
+layout_right_reserved = 0;
 
-size_prev_x = padding;
-size_prev_y = 24;
-size_prev_w = 32;
-size_prev_h = 32;
+// Cache base layout values so we can switch to a compact touch layout on small screens (HTML/mobile)
+base_padding = padding;
+base_layout_bottom_reserved = layout_bottom_reserved;
+base_layout_right_reserved = layout_right_reserved;
+mobile_layout_prev = false;
 
-size_next_x = padding + 176;
-size_next_y = 24;
-size_next_w = 32;
-size_next_h = 32;
+recalc_ui_positions = function() {
+    size_prev_x = padding;
+    size_prev_y = 24;
+    size_prev_w = 32;
+    size_prev_h = 32;
 
-new_blank_x = padding + 224;
-new_blank_y = 24;
-new_blank_w = 160;
-new_blank_h = 32;
+    size_next_x = padding + 176;
+    size_next_y = 24;
+    size_next_w = 32;
+    size_next_h = 32;
+
+    new_blank_x = padding + 224;
+    new_blank_y = 24;
+    new_blank_w = 160;
+    new_blank_h = 32;
+};
+
+
+// UI layout settings (right panel + bottom bar)
+ui_panel_w = 240;
+ui_panel_pad = 12;
+ui_row_h = 24;
+ui_row_gap = 6;
+ui_panel_y = 92;
+ui_panel_gap_left = 24; // space between grid and right panel
+ui_panel_visible = true;
+ui_panel_x = 0;
+ui_panel_h = 0;
+ui_rows = [];
+ui_rows_count = 0;
+ui_advanced_open = false;
+ui_settings_open_mobile = false; // toggled by a small icon on mobile
+apply_mobile_layout = function(_on) {
+    // Keep changes minimal to avoid breaking desktop layout.
+    if (_on) {
+        padding = 24;
+        layout_bottom_reserved = 190;
+        // On mobile, default to hiding the right panel so the grid fits.
+        ui_settings_open_mobile = false;
+    } else {
+        padding = base_padding;
+        layout_bottom_reserved = base_layout_bottom_reserved;
+    }
+    recalc_ui_positions();
+    update_cell_size();
+};
+
+// Bottom buttons layout
+ui_layout_bottom_buttons = function() {
+    // Keep buttons aligned and sized across resolutions/HTML/mobile.
+    var btn_h = global.mobile_layout ? 60 : 64;
+    var btn_gap = global.mobile_layout ? 12 : 18;
+    var btn_pad = max(16, padding);
+
+    if (global.mobile_layout) {
+        // 2 rows on small screens
+        var y2 = room_height - btn_h - 24;
+        var y1 = y2 - btn_h - btn_gap;
+
+        // Row 1: Load, Save, Fill
+        var row1 = 3;
+        var w1 = floor((room_width - (btn_pad * 2) - (btn_gap * (row1 - 1))) / row1);
+        var x1 = btn_pad;
+        with (obj_loadButton) { x = x1; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
+        with (obj_saveButton) { x = x1 + (w1 + btn_gap) * 1; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
+        with (obj_fillGrid) { x = x1 + (w1 + btn_gap) * 2; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
+
+        // Row 2: Stop, Export
+        var row2 = 2;
+        var w2 = floor((room_width - (btn_pad * 2) - (btn_gap * (row2 - 1))) / row2);
+        var x2 = btn_pad;
+        with (obj_stopFill) { x = x2; y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
+        with (obj_testWordList) { x = x2 + (w2 + btn_gap); y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
+    } else {
+        // Single row on desktop
+        var btn_y = room_height - btn_h - 24;
+        var count = 5;
+        var btn_w = floor((room_width - (btn_pad * 2) - (btn_gap * (count - 1))) / count);
+        var bx = btn_pad;
+
+        with (obj_loadButton) { x = bx + (btn_w + btn_gap) * 0; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_saveButton) { x = bx + (btn_w + btn_gap) * 1; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_fillGrid) { x = bx + (btn_w + btn_gap) * 2; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_stopFill) { x = bx + (btn_w + btn_gap) * 3; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_testWordList) { x = bx + (btn_w + btn_gap) * 4; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+    }
+};
 
 status_text = "Ready";
 current_template_name = "";
 template_dialog_request_id = -1;
 template_dialog_action = "";
+template_list_overlay_active = false;
+template_list_names = [];
+template_list_box_x = 0;
+template_list_box_y = 0;
+template_list_box_w = 0;
+template_list_box_h = 0;
+template_list_row_h = 22;
+template_list_first_row_y = 0;
+template_list_visible_count = 0;
+template_list_scroll = 0;
+template_list_max_scroll = 0;
+
+// Help overlay (click ? in the upper-right)
+help_btn_x = 0;
+help_btn_y = 0;
+help_btn_w = 24;
+help_btn_h = 24;
+help_overlay_active = false;
+help_box_x = 0;
+help_box_y = 0;
+help_box_w = 0;
+help_box_h = 0;
+help_scroll = 0;
+help_line_h = 18;
+help_visible_lines = 0;
+help_lines = [];
+
+help_build_lines = function() {
+    help_lines = [
+        "Crossword Maker Help",
+        "",
+        "Grid",
+        "- Use the < and > buttons to change grid size (odd sizes).",
+        "- Click cells to toggle blocks.",
+        "- LMB toggles mirrored blocks.",
+        "- RMB deletes a single block without deleting its mirror.",
+        "- Shift+LMB types a character into a cell.",
+        "- Backspace/Delete clears a typed cell back to empty.",
+        "",
+        "Templates",
+        "- Save Template writes the current grid (blocks + typed cells)",
+        "  to a template file.",
+        "- Load Template shows a list of saved templates.",
+        "",
+        "Fill",
+        "- Fill Grid runs the solver.",
+        "- Stop Fill stops the solver so you can adjust the grid and run again.",
+        "",
+        "Export",
+        "- Export saves the puzzle in grid format",
+        "  and also writes a CSV of Across/Down words.",
+        "",
+        "Settings Panel",
+        "Solver: Normal / Relaxed / Brute",
+        "- Normal: MRV + forward-check + backtracking.",
+        "- Relaxed: loosened constraints to escape local traps.",
+        "- Brute: fewer heuristics; try anything that matches the slot pattern.",
+        "Immutables: Strict / Soft / Off",
+        "- Strict: typed letters are protected and never overwritten.",
+        "- Soft: solver may override typed letters if needed.",
+        "- Off: typed letters are treated like normal fill.",
+        "Long-slot gate",
+        "- Prevents Fill until every slot of N+ is blocked or user-filled.",
+        "Close words",
+        "- Type ? then A or D, then click a cell to open Close possibilities.",
+        "- In the popup: click A-Z to filter suggestions by starting letter.",
+        "Check grid",
+        "- Runs a feasibility check (every slot must have at least one candidate).",
+        "",
+        "Advanced",
+        "- Toggle Advanced to show additional solver controls.",
+        "- ROI chunk fill: fill a 5x5 or 7x7 region first.",
+        "- Stall restart: auto-restart if progress stalls.",
+        "- Vocab: common-first / common-only / full.",
+        "- Commonness score: bias candidate selection toward common words.",
+        "- Brute burst: temporary brute-force tries even in other modes.",
+        "",
+        "Controls",
+        "- Mouse wheel scrolls lists/help.",
+        "- PgUp/PgDn scroll help.",
+        "- ESC closes popups."
+    ];
+};
+help_build_lines();
+
+help_open = function() {
+    // Ensure Advanced is open so the help matches what users can see.
+    ui_advanced_open = true;
+    if (variable_global_exists("mobile_layout") && global.mobile_layout) ui_settings_open_mobile = true;
+    help_overlay_active = true;
+    help_scroll = 0;
+    set_status("Help opened");
+};
+
+help_close = function() {
+    help_overlay_active = false;
+    set_status("Help closed");
+};
+
+// Command / picker helpers (for ?A / ?D style commands)
+cmd_stage = 0; // 0=idle, 1=got ?, 2=armed
+cmd_lastchar = ""; // last processed keyboard_lastchar for command mode
+global.cmd_mode = 0; // 0=none, 1=?A (across), 2=?D (down)
+candidate_overlay_active = false;
+candidate_list_words = [];
+candidate_list_box_x = 0;
+candidate_list_box_y = 0;
+candidate_list_box_w = 0;
+candidate_list_box_h = 0;
+candidate_list_row_h = 22;
+candidate_list_first_row_y = 0;
+candidate_list_visible_count = 0;
+candidate_slot_data = undefined;
+candidate_slot_pattern = "";
+
+// Close-words picker paging (when there are lots of candidates)
+candidate_list_all_words = [];
+candidate_list_total = 0;
+candidate_list_total_all = 0;
+candidate_filter_letter = "";
+candidate_list_filtered_words = [];
+candidate_page_size = 10;
+candidate_page = 0;
+candidate_pages = 1;
+
+candidate_picker_apply_page = function() {
+    if (!is_array(candidate_list_all_words)) candidate_list_all_words = [];
+    var src = (candidate_filter_letter != "") ? candidate_list_filtered_words : candidate_list_all_words;
+    candidate_list_total = array_length(src);
+    candidate_pages = max(1, ceil(candidate_list_total / max(1, candidate_page_size)));
+    candidate_page = clamp(candidate_page, 0, candidate_pages - 1);
+
+    candidate_list_words = [];
+    var start_i = candidate_page * candidate_page_size;
+    var end_i = min(candidate_list_total, start_i + candidate_page_size);
+    var out_i = 0;
+    for (var i = start_i; i < end_i; i++) {
+        candidate_list_words[out_i] = src[i];
+        out_i += 1;
+    }
+};
+
+candidate_picker_close = function() {
+    candidate_overlay_active = false;
+    candidate_list_words = [];
+    candidate_list_all_words = [];
+    candidate_list_total = 0;
+    candidate_list_total_all = 0;
+    candidate_filter_letter = "";
+    candidate_list_filtered_words = [];
+    candidate_page = 0;
+    candidate_pages = 1;
+    candidate_slot_data = undefined;
+    candidate_slot_pattern = "";
+};
+
+candidate_picker_open = function(_words) {
+    candidate_list_all_words = _words;
+    candidate_list_total_all = array_length(candidate_list_all_words);
+    candidate_filter_letter = "";
+    candidate_list_filtered_words = [];
+    candidate_page = 0;
+    candidate_picker_apply_page();
+
+    // If the first character is blank and we have lots of options, start on a random page
+    if (candidate_list_total > candidate_page_size) {
+        if (string_length(candidate_slot_pattern) > 0 && string_char_at(candidate_slot_pattern, 1) == "_") {
+            candidate_page = irandom(candidate_pages - 1);
+            candidate_picker_apply_page();
+        }
+    }
+
+    candidate_overlay_active = true;
+};
+
+candidate_picker_jump_to_letter = function(_ch) {
+    return candidate_picker_set_filter(_ch);
+};
+candidate_picker_set_filter = function(_ch) {
+    var up = string_upper(_ch);
+    if (candidate_filter_letter == up) {
+        // Toggle off
+        candidate_filter_letter = "";
+        candidate_list_filtered_words = [];
+        candidate_page = 0;
+        candidate_picker_apply_page();
+        return true;
+    }
+
+    // 1) Fast path: filter the already-collected pool
+    var tmp = [];
+    var out = 0;
+    for (var i = 0; i < array_length(candidate_list_all_words); i++) {
+        var w = candidate_list_all_words[i];
+        if (string_length(w) > 0 && string_char_at(w, 1) == up) {
+            tmp[out++] = w;
+        }
+    }
+
+    // 2) Fallback: if the pool is biased (often all A-words), scan the full bucket for this length+pattern
+    if (out <= 0 && variable_global_exists("wordsByLength") && ds_exists(global.wordsByLength, ds_type_map)
+        && !is_undefined(candidate_slot_data)) {
+        var key_len = string(candidate_slot_data.len);
+        if (ds_map_exists(global.wordsByLength, key_len)) {
+            var bucket = global.wordsByLength[? key_len];
+            var bucket_count = ds_list_size(bucket);
+
+            var pattern = candidate_slot_pattern;
+            var fixed_letters = "";
+            var fixed_count = 0;
+            for (var pat_i = 1; pat_i <= string_length(pattern); pat_i++) {
+                var pc = string_char_at(pattern, pat_i);
+                if (pc != "_") { fixed_letters += pc; fixed_count++; }
+            }
+            var min_shared = 1;
+            if (fixed_count >= 3) min_shared = 2;
+
+            var strict = [];
+            var loose = [];
+            var s_count = 0;
+            var l_count = 0;
+            var collect_cap = 240;
+
+            for (var b = 0; b < bucket_count; b++) {
+                var ww = bucket[| b];
+                if (string_length(ww) <= 0 || string_char_at(ww, 1) != up) continue;
+
+                if (crossword_word_matches_pattern(ww, pattern)) {
+                    strict[s_count++] = ww;
+                } else if (fixed_count > 0) {
+                    var shared = 0;
+                    for (var k = 1; k <= string_length(fixed_letters); k++) {
+                        var fl = string_char_at(fixed_letters, k);
+                        if (string_pos(fl, ww) > 0) shared++;
+                        if (shared >= min_shared) break;
+                    }
+                    if (shared >= min_shared) {
+                        loose[l_count++] = ww;
+                    }
+                }
+
+                if (s_count + l_count >= collect_cap) break;
+            }
+
+            if (array_length(strict) > 1) array_shuffle(strict);
+            if (array_length(loose) > 1) array_shuffle(loose);
+
+            tmp = [];
+            out = 0;
+            for (var si = 0; si < array_length(strict); si++) tmp[out++] = strict[si];
+            for (var li = 0; li < array_length(loose) && out < collect_cap; li++) tmp[out++] = loose[li];
+        }
+    }
+
+    if (out <= 0) return false;
+
+    candidate_filter_letter = up;
+    candidate_list_filtered_words = tmp;
+    candidate_page = 0;
+    candidate_picker_apply_page();
+    if (candidate_pages > 1) {
+        candidate_page = irandom(candidate_pages - 1);
+        candidate_picker_apply_page();
+    }
+    return true;
+};
 
 global.fill_attempt_limit = 250000;
 global.fill_attempt_count = 0;
 global.step15_min_ratio = 0.60;
 global.slot_try_limit = 100;
+global.long_entry_min_len = 9;
+global.commonness_bias_enabled = true;
+
+// Solver method controls (can be changed while running)
+global.solver_mode = 0; // 0=Normal, 1=Relaxed, 2=Brute
+
+global.immutables_mode = 0; // 0=Strict, 1=Soft, 2=Off
+
+// Mobile/HTML helpers
+global.mobile_layout = false;
+global.edit_mode = 0; // 0=blocks, 1=letters (used on small touch screens)
+global.brute_burst_remaining = 0;
+
+// Mobile letter-entry async prompt state (so mobile can open the OS keyboard reliably)
+cell_dialog_request_id = -1;
+cell_dialog_col = -1;
+cell_dialog_row = -1;
+
+// ROI (chunk fill) controls: Alt+LMB to set top-left of a 5x5 region
+global.roi_fill_enabled = false;
+global.roi_x = 0;
+global.roi_y = 0;
+global.roi_w = 5;
+global.roi_h = 5;
+global.roi_default_size = 5;
+
+// Optional: restart search if the solver stalls for a long time (useful on 11x11+)
+global.stall_restart_enabled = false;
+global.stall_restart_ms = 15000;
+global.stall_restart_units = 250000;
+// RNG config: set to false for normal random behavior (recommended for release).
+global.use_fixed_seed = false;
+global.fixed_seed = 13371;
+
+long_gate_options = [7, 9, 11, 13, 15];
+long_gate_index = 1;
 
 letter_entry_active = false;
+letter_entry_prev_active = false;
 letter_entry_col = -1;
 letter_entry_row = -1;
 
@@ -41,6 +425,10 @@ solver_active = false;
 global.visual_solver = undefined;
 global.solver_fail_cells = [];
 global.solver_fail_until = 0;
+global.solver_heartbeat = 0;
+global.solver_work_units = 0;
+global.solver_start_time_ms = 0;
+global.solver_last_progress_log_units = 0;
 
 // Initialize grid
 grid = ds_grid_create(grid_width, grid_height);
@@ -49,6 +437,93 @@ ds_grid_clear(grid, "");
 set_status = function(_msg) {
     status_text = _msg;
 };
+set_long_gate_index = function(_idx) {
+    if (_idx < 0 || _idx >= array_length(long_gate_options)) return;
+    long_gate_index = _idx;
+    global.long_entry_min_len = long_gate_options[long_gate_index];
+    set_status("Manual long-slot gate set to " + string(global.long_entry_min_len) + "+");
+};
+apply_rng_seed = function() {
+    if (global.use_fixed_seed) {
+        random_set_seed(global.fixed_seed);
+        show_debug_message("[RNG] Fixed seed=" + string(global.fixed_seed));
+    } else {
+        randomize();
+        show_debug_message("[RNG] randomize()");
+    }
+};
+update_cell_size = function() {
+    // Reserve space for the right settings panel so large grids never draw under it.
+    var available_w = room_width - (padding * 2) - max(0, layout_right_reserved);
+    var available_h = room_height - padding - layout_bottom_reserved;
+    var max_w = floor(available_w / max(1, grid_width));
+    var max_h = floor(available_h / max(1, grid_height));
+    var target = min(max_w, max_h);
+    target = clamp(target, 18, 32);
+    cell_size = target;
+};
+
+ui_recalc_layout = function() {
+    // Decide if the panel is visible this frame.
+    // Desktop: always on. Mobile: hidden unless the user opens it.
+    ui_panel_visible = (!global.mobile_layout) || ui_settings_open_mobile;
+
+    // Reserve right-side space for the panel (and a small gap) so the grid fits.
+    layout_right_reserved = ui_panel_visible ? (ui_panel_w + ui_panel_gap_left) : 0;
+
+    // Recompute panel geometry.
+    ui_panel_x = room_width - padding - ui_panel_w;
+    ui_panel_h = 0;
+
+    // Build a compact row list used by both Step hit-testing and Draw rendering.
+    ui_rows = [];
+    ui_rows_count = 0;
+    ui_row_cursor_y = ui_panel_y + ui_panel_pad;
+
+    // Helper: add a single row (uniform height).
+    var add_row = function(_id, _kind, _label) {
+        ui_rows[ui_rows_count] = {
+            id: _id,
+            kind: _kind,
+            label: _label,
+            x1: ui_panel_x + ui_panel_pad,
+            y1: ui_row_cursor_y,
+            x2: ui_panel_x + ui_panel_w - ui_panel_pad,
+            y2: ui_row_cursor_y + ui_row_h
+        };
+        ui_rows_count += 1;
+        ui_row_cursor_y += ui_row_h + ui_row_gap;
+    };
+
+    add_row("hdr", "header", "Settings");
+    add_row("method", "segmented", "Solver Method");
+    add_row("immutables", "cycle3", "Immutables");
+    add_row("gate", "gate", "Long-slot gate");
+    add_row("closeposs", "cycle3", "Close words");
+    add_row("check", "action", "Check grid");
+    add_row("advanced", "toggle", "Advanced");
+
+    if (ui_advanced_open) {
+        add_row("roi", "toggle", "ROI chunk fill");
+        add_row("roisize", "cycle", "ROI size");
+        add_row("stall", "toggle", "Stall restart");
+        add_row("vocab", "cycle", "Vocab");
+        add_row("commonness", "toggle", "Commonness score");
+        add_row("bruteburst", "action", "Brute burst");
+    }
+
+    if (global.mobile_layout) {
+        add_row("editmode", "toggle", "Edit mode");
+    }
+
+    // Panel height includes bottom padding, but must not overlap the bottom button area.
+    ui_panel_h = (ui_row_cursor_y - ui_panel_y) + (ui_panel_pad - ui_row_gap);
+    var max_panel_h = max(0, room_height - ui_panel_y - layout_bottom_reserved);
+    ui_panel_h = min(ui_panel_h, max_panel_h);
+};
+update_cell_size();
+apply_rng_seed();
+recalc_ui_positions();
 
 sanitize_template_name = function(_name) {
     var src = string_lower(_name);
@@ -70,6 +545,44 @@ sanitize_template_name = function(_name) {
     if (out == "") out = "template";
     return out;
 };
+refresh_template_name_list = function() {
+    var collected = ds_list_create();
+    var found = file_find_first("template_*.ini", fa_archive);
+    while (found != "") {
+        var display_name = "";
+        ini_open(found);
+        display_name = ini_read_string("template", "name", "");
+        ini_close();
+
+        if (display_name == "") {
+            display_name = found;
+            var lower = string_lower(display_name);
+            if (string_copy(lower, 1, 9) == "template_") {
+                display_name = string_delete(display_name, 1, 9);
+            }
+
+            var n = string_length(display_name);
+            if (n >= 4) {
+                var ext = string_lower(string_copy(display_name, n - 3, 4));
+                if (ext == ".ini") {
+                    display_name = string_delete(display_name, n - 3, 4);
+                }
+            }
+        }
+
+        if (display_name != "") ds_list_add(collected, display_name);
+        found = file_find_next();
+    }
+    file_find_close();
+
+    ds_list_sort(collected, true);
+    var count = ds_list_size(collected);
+    template_list_names = array_create(count, "");
+    for (var i = 0; i < count; i++) {
+        template_list_names[i] = collected[| i];
+    }
+    ds_list_destroy(collected);
+};
 
 set_grid_size = function(_size) {
     if (solver_active) {
@@ -84,6 +597,7 @@ set_grid_size = function(_size) {
     grid_height = _size;
     grid = ds_grid_create(grid_width, grid_height);
     ds_grid_clear(grid, "");
+    update_cell_size();
 
     current_template_name = "";
     letter_entry_active = false;
@@ -112,11 +626,21 @@ save_template = function(_template_name) {
 
     var rows = "";
     for (var row_i_save = 0; row_i_save < grid_height; row_i_save++) {
-        var row = "";
+        var row_tokens = "";
         for (var col_i_save = 0; col_i_save < grid_width; col_i_save++) {
-            row += (grid[# col_i_save, row_i_save] == "INVALID") ? "#" : ".";
+            var cell = grid[# col_i_save, row_i_save];
+            var token = "-2"; // empty
+            if (cell == "INVALID") {
+                token = "-1";
+            } else if (cell != "") {
+                token = string(ord(string_char_at(cell, 1)));
+            }
+
+            row_tokens += token;
+            if (col_i_save < grid_width - 1) row_tokens += ",";
         }
-        rows += row;
+
+        rows += row_tokens;
         if (row_i_save < grid_height - 1) rows += "|";
     }
 
@@ -124,6 +648,7 @@ save_template = function(_template_name) {
     ini_write_string("template", "name", _template_name);
     ini_write_real("template", "width", grid_width);
     ini_write_real("template", "height", grid_height);
+    ini_write_real("grid", "format", 2);
     ini_write_string("grid", "rows", rows);
     ini_close();
 
@@ -145,6 +670,7 @@ load_template = function(_template_name) {
     ini_open(filename);
     var w = floor(ini_read_real("template", "width", 5));
     var h = floor(ini_read_real("template", "height", 5));
+    var fmt = floor(ini_read_real("grid", "format", 1));
     var rows = ini_read_string("grid", "rows", "");
     ini_close();
 
@@ -171,9 +697,26 @@ load_template = function(_template_name) {
     var row_parts = string_split(rows, "|");
     for (var row_i_load = 0; row_i_load < min(array_length(row_parts), grid_height); row_i_load++) {
         var row = row_parts[row_i_load];
-        for (var col_i_load = 0; col_i_load < min(string_length(row), grid_width); col_i_load++) {
-            var ch = string_char_at(row, col_i_load + 1);
-            grid[# col_i_load, row_i_load] = (ch == "#") ? "INVALID" : "";
+
+        // Format 2: numeric tokens (-1 invalid, -2 empty, else ord value).
+        if (fmt >= 2 || string_pos(",", row) > 0) {
+            var col_tokens = string_split(row, ",");
+            for (var col_i_load = 0; col_i_load < min(array_length(col_tokens), grid_width); col_i_load++) {
+                var token_value = floor(real(col_tokens[col_i_load]));
+                if (token_value == -1) {
+                    grid[# col_i_load, row_i_load] = "INVALID";
+                } else if (token_value == -2) {
+                    grid[# col_i_load, row_i_load] = "";
+                } else {
+                    grid[# col_i_load, row_i_load] = chr(token_value);
+                }
+            }
+        } else {
+            // Legacy format: '#' for block, '.' for open/empty.
+            for (var col_i_load = 0; col_i_load < min(string_length(row), grid_width); col_i_load++) {
+                var ch = string_char_at(row, col_i_load + 1);
+                grid[# col_i_load, row_i_load] = (ch == "#") ? "INVALID" : "";
+            }
         }
     }
 
@@ -187,6 +730,12 @@ global.wordList = ds_list_create();
 global.wordLookup = ds_map_create();
 global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
+
+global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
+global.allow_phrases = true; // If false, skip long phrase-like entries during dictionary load.
+global.phrase_min_len = 10; // Treat entries >= this length as phrases when allow_phrases is false.
+global.commonWordLookup = ds_map_create();
+global.commonWordRank = ds_map_create();
 
 var candidate_files = [
     "datafiles/wordgamedictionary.com_twl06_download_twl06.txt",
@@ -206,6 +755,8 @@ if (word_file == "") {
 } else {
     var file = file_text_open_read(word_file);
 
+    var skipped_phrases = 0;
+    var skipped_short = 0;
     while (!file_text_eof(file)) {
         var raw_word = string_upper(file_text_read_string(file));
         file_text_readln(file);
@@ -220,6 +771,15 @@ if (word_file == "") {
 
         if (word == "") continue;
 
+        var wlen = string_length(word);
+        if (wlen < 2) {
+            skipped_short++;
+            continue;
+        }
+        if (!global.allow_phrases && wlen >= global.phrase_min_len) {
+            skipped_phrases++;
+            continue;
+        }
         if (!ds_map_exists(global.wordLookup, word)) {
             ds_list_add(global.wordList, word);
             ds_map_add(global.wordLookup, word, true);
@@ -254,8 +814,66 @@ if (word_file == "") {
 
     file_text_close(file);
     ds_list_shuffle(global.wordList);
-    show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file);
+    show_debug_message("[Crossword] Loaded words: " + string(ds_list_size(global.wordList)) + " from " + word_file
+        + " (skipped short=" + string(skipped_short)
+        + " skipped phrases=" + string(skipped_phrases)
+        + " allow_phrases=" + string(global.allow_phrases)
+        + " phrase_min_len=" + string(global.phrase_min_len) + ")");
 }
+
+
+var common_files = [
+    "datafiles/common_words.txt",
+    "common_words.txt"
+];
+
+var common_file = "";
+for (var cf = 0; cf < array_length(common_files); cf++) {
+    if (file_exists(common_files[cf])) {
+        common_file = common_files[cf];
+        break;
+    }
+}
+
+if (common_file != "") {
+    var cfile = file_text_open_read(common_file);
+    var rank = 1;
+    while (!file_text_eof(cfile)) {
+        var cword = string_upper(file_text_read_string(cfile));
+        file_text_readln(cfile);
+
+        var cleaned = "";
+        for (var ci = 1; ci <= string_length(cword); ci++) {
+            var cch = string_char_at(cword, ci);
+            if (ord(cch) >= ord("A") && ord(cch) <= ord("Z")) cleaned += cch;
+        }
+
+        if (cleaned == "") continue;
+        if (!ds_map_exists(global.wordLookup, cleaned)) continue;
+
+        if (!ds_map_exists(global.commonWordLookup, cleaned)) {
+            ds_map_add(global.commonWordLookup, cleaned, true);
+            ds_map_add(global.commonWordRank, cleaned, rank);
+            rank++;
+        }
+    }
+    file_text_close(cfile);
+    show_debug_message("[Crossword] Loaded common words: " + string(ds_map_size(global.commonWordLookup)) + " from " + common_file);
+} else {
+    show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

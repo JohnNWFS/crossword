@@ -4,3 +4,7 @@ Crossword.yypold/
 # GameMaker local/temporary files
 *.tmp
 *.log
+
+# Dictionary backups
+*.bak_*
+

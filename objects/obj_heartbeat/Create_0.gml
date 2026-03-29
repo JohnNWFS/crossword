@@ -742,6 +742,7 @@ global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
 global.prefixSetByLength = ds_map_create(); // prefixSetByLength[len][prefix] = true; O(1) prefix lookup
 global.posIndexByLength = ds_map_create();  // posIndexByLength["len:pos:letter"] -> ds_list of words
+global.wordFreqScore = ds_map_create();     // wordFreqScore[word] -> 0-2000 log-normalized frequency
 
 global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
 global.allow_phrases = true; // If false, skip long phrase-like entries during dictionary load.
@@ -910,6 +911,58 @@ if (common_file != "") {
     show_debug_message("[Crossword] Loaded common words: " + string(ds_map_size(global.commonWordLookup)) + " from " + common_file);
 } else {
     show_debug_message("[Crossword] common_words.txt not found; using heuristic-only ranking.");
+}
+
+// Load count_1w.txt: tab-separated "word<TAB>frequency", sorted by frequency descending.
+// Store a log10-normalized 0-2000 score for each word that exists in our crossword dictionary.
+// Cap at 100,000 lines to bound startup time; the file is frequency-sorted so top words come first.
+var freq1w_candidates = [
+    "datafiles/count_1w.txt",
+    "count_1w.txt"
+];
+var freq1w_file = "";
+for (var fw = 0; fw < array_length(freq1w_candidates); fw++) {
+    if (file_exists(freq1w_candidates[fw])) {
+        freq1w_file = freq1w_candidates[fw];
+        break;
+    }
+}
+
+if (freq1w_file == "") {
+    show_debug_message("[Crossword] count_1w.txt not found; frequency scoring uses common_words.txt ranking.");
+} else {
+    var freq1w_fh = file_text_open_read(freq1w_file);
+    var freq1w_loaded = 0;
+    var freq1w_lines = 0;
+    var freq1w_dict_size = ds_map_size(global.wordLookup);
+    while (!file_text_eof(freq1w_fh) && freq1w_lines < 100000) {
+        var freq1w_line = file_text_read_string(freq1w_fh);
+        file_text_readln(freq1w_fh);
+        freq1w_lines++;
+
+        var freq1w_tab = string_pos("\t", freq1w_line);
+        if (freq1w_tab < 2) continue;
+
+        var freq1w_word = string_upper(string_copy(freq1w_line, 1, freq1w_tab - 1));
+        if (!ds_map_exists(global.wordLookup, freq1w_word)) continue;
+        if (ds_map_exists(global.wordFreqScore, freq1w_word)) continue;
+
+        var freq1w_str = string_copy(freq1w_line, freq1w_tab + 1, string_length(freq1w_line) - freq1w_tab);
+        var freq1w_val = real(freq1w_str);
+
+        var freq1w_score = 0.0;
+        if (freq1w_val >= 1) {
+            freq1w_score = clamp((log10(freq1w_val) / 11.0) * 2000.0, 0, 2000);
+        }
+
+        ds_map_add(global.wordFreqScore, freq1w_word, freq1w_score);
+        freq1w_loaded++;
+        if (freq1w_loaded >= freq1w_dict_size) break;
+    }
+    file_text_close(freq1w_fh);
+    show_debug_message("[Crossword] Frequency scores loaded: " + string(freq1w_loaded) + "/"
+        + string(freq1w_dict_size) + " dict words from " + freq1w_file
+        + " (scanned " + string(freq1w_lines) + " lines)");
 }
 
 

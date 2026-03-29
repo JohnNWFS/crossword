@@ -1234,6 +1234,7 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
     var vocab_mode = global.fill_vocab_mode;
     if (mode == 2) vocab_mode = 2;
     var has_common_map = variable_global_exists("commonWordLookup") && ds_exists(global.commonWordLookup, ds_type_map);
+    var has_freq_map = variable_global_exists("wordFreqScore") && ds_exists(global.wordFreqScore, ds_type_map);
 
     var indexed = crossword_candidates_from_index(slot_data.len, pattern);
     var indexed_n = array_length(indexed);
@@ -1252,14 +1253,17 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         var is_common = has_common_map && ds_map_exists(global.commonWordLookup, w);
         if (vocab_mode == 1 && !is_common) continue;
 
-        var common_bonus = 0.0;
+        // Frequency bonus: prefer count_1w.txt log score, fall back to commonWordRank.
+        var freq_bonus = 0.0;
         if (vocab_mode == 0) {
-            if (is_common) {
+            if (has_freq_map && ds_map_exists(global.wordFreqScore, w)) {
+                freq_bonus = global.wordFreqScore[? w]; // 0-2000, log10-normalized
+            } else if (is_common) {
                 var rank_val = 999999;
                 if (ds_map_exists(global.commonWordRank, w)) rank_val = global.commonWordRank[? w];
-                common_bonus = 2000.0 - min(1500.0, rank_val * 0.05);
+                freq_bonus = 2000.0 - min(1500.0, rank_val * 0.05);
             } else {
-                common_bonus = -50.0;
+                freq_bonus = -50.0;
             }
         }
 
@@ -1268,7 +1272,7 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
             base_score = crossword_word_commonness_score(w);
         }
 
-        var final_score = base_score + common_bonus;
+        var final_score = base_score + freq_bonus;
         var imm_mode = variable_global_exists("immutables_mode") ? global.immutables_mode : 0;
         if (imm_mode == 1) {
             var ow = crossword_solver_seed_overwrite_count(vs, slot_data, w);

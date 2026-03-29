@@ -43,6 +43,10 @@ if (variable_global_exists("usedWords") && ds_exists(global.usedWords, ds_type_m
     ds_map_destroy(global.usedWords);
 }
 
+if (variable_global_exists("wordFreqScore") && ds_exists(global.wordFreqScore, ds_type_map)) {
+    ds_map_destroy(global.wordFreqScore);
+}
+
 if (variable_global_exists("prefix2ByLength") && ds_exists(global.prefix2ByLength, ds_type_map)) {
     var pkey = ds_map_find_first(global.prefix2ByLength);
     while (!is_undefined(pkey)) {

@@ -1115,31 +1115,92 @@ function crossword_solver_seed_overwrite_count(vs, slot_data, word) {
     return count;
 }
 
+// Returns an array of words of word_len that match pattern, using the
+// position index for O(1) lookup on fixed letters. Falls back to a full
+// bucket scan if the index is not available (e.g. very early init).
+function crossword_candidates_from_index(word_len, pattern) {
+    var key_len = string(word_len);
+
+    if (variable_global_exists("posIndexByLength") && ds_exists(global.posIndexByLength, ds_type_map)) {
+        // Find the fixed-letter position whose index list is smallest.
+        var best_list = undefined;
+        var best_size = -1;
+        var cfi_k = 1;
+        repeat (word_len) {
+            var cfi_ch = string_char_at(pattern, cfi_k);
+            if (cfi_ch != "_") {
+                var idx_key = key_len + ":" + string(cfi_k) + ":" + cfi_ch;
+                if (!ds_map_exists(global.posIndexByLength, idx_key)) {
+                    return []; // No word of this length has cfi_ch at position cfi_k
+                }
+                var cfi_lst = global.posIndexByLength[? idx_key];
+                var cfi_sz = ds_list_size(cfi_lst);
+                if (best_size < 0 || cfi_sz < best_size) {
+                    best_size = cfi_sz;
+                    best_list = cfi_lst;
+                }
+            }
+            cfi_k++;
+        }
+
+        if (!is_undefined(best_list)) {
+            // Iterate the smallest list, filter by full pattern match
+            var cfi_out = [];
+            var cfi_out_n = 0;
+            var cfi_j = 0;
+            repeat (best_size) {
+                var cfi_w = best_list[| cfi_j];
+                if (crossword_word_matches_pattern(cfi_w, pattern)) {
+                    cfi_out[cfi_out_n++] = cfi_w;
+                }
+                cfi_j++;
+            }
+            return cfi_out;
+        }
+        // All-blank pattern: fall through to bucket scan
+    }
+
+    // Fallback: full bucket scan with pattern filter
+    if (!ds_map_exists(global.wordsByLength, key_len)) return [];
+    var fb_bucket = global.wordsByLength[? key_len];
+    var fb_n = ds_list_size(fb_bucket);
+    var fb_out = [];
+    var fb_count = 0;
+    var fb_i = 0;
+    repeat (fb_n) {
+        var fb_w = fb_bucket[| fb_i];
+        if (crossword_word_matches_pattern(fb_w, pattern)) {
+            fb_out[fb_count++] = fb_w;
+        }
+        fb_i++;
+    }
+    return fb_out;
+}
+
 function crossword_solver_count_candidates_limit(vs, slot_data, pattern, limit) {
     var key_len = string(slot_data.len);
     if (!ds_map_exists(global.wordsByLength, key_len)) {
         return 0;
     }
 
-    var bucket = global.wordsByLength[? key_len];
-    var bucket_count = ds_list_size(bucket);
     var slot_dir = (slot_data.dir == "A") ? "horizontal" : "vertical";
     var mode = crossword_solver_effective_mode();
     var apply_letter = (mode != 2);
     var apply_deadend = (mode == 0);
 
-    var vocab_mode = global.fill_vocab_mode; // 0 common-first, 1 common-only, 2 full
+    var vocab_mode = global.fill_vocab_mode;
     if (mode == 2) vocab_mode = 2;
     var has_common_map = variable_global_exists("commonWordLookup") && ds_exists(global.commonWordLookup, ds_type_map);
 
+    var indexed = crossword_candidates_from_index(slot_data.len, pattern);
+    var indexed_n = array_length(indexed);
     var count = 0;
-    for (var i = 0; i < bucket_count; i++) {
+    for (var ccl_i = 0; ccl_i < indexed_n; ccl_i++) {
         global.solver_work_units++;
         crossword_solver_maybe_log_progress();
-        var w = bucket[| i];
+        var w = indexed[ccl_i];
 
         if (ds_map_exists(global.usedWords, w)) continue;
-        if (!crossword_word_matches_pattern(w, pattern)) continue;
         if (crossword_solver_blacklist_has(vs, slot_data, pattern, w)) continue;
         if (!can_place_word(w, slot_data.col, slot_data.row, slot_dir)) continue;
         if (apply_letter && !crossword_candidate_passes_letter_rules(w, slot_data)) continue;
@@ -1163,29 +1224,26 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
     var apply_letter = (mode != 2);
     var apply_deadend = (mode == 0);
 
-
     if (!ds_map_exists(global.wordsByLength, key_len)) {
-
         return out;
     }
 
-    var bucket = global.wordsByLength[? key_len];
-    var bucket_count = ds_list_size(bucket);
     var slot_dir = (slot_data.dir == "A") ? "horizontal" : "vertical";
-
     var ranked = [];
     var ranked_count = 0;
-    var vocab_mode = global.fill_vocab_mode; // 0 common-first, 1 common-only, 2 full
+    var vocab_mode = global.fill_vocab_mode;
     if (mode == 2) vocab_mode = 2;
     var has_common_map = variable_global_exists("commonWordLookup") && ds_exists(global.commonWordLookup, ds_type_map);
 
-    for (var i = 0; i < bucket_count; i++) {
+    var indexed = crossword_candidates_from_index(slot_data.len, pattern);
+    var indexed_n = array_length(indexed);
+
+    for (var cc_i = 0; cc_i < indexed_n; cc_i++) {
         global.solver_work_units++;
         crossword_solver_maybe_log_progress();
-        var w = bucket[| i];
+        var w = indexed[cc_i];
 
         if (ds_map_exists(global.usedWords, w)) continue;
-        if (!crossword_word_matches_pattern(w, pattern)) continue;
         if (crossword_solver_blacklist_has(vs, slot_data, pattern, w)) continue;
         if (!can_place_word(w, slot_data.col, slot_data.row, slot_dir)) continue;
         if (apply_letter && !crossword_candidate_passes_letter_rules(w, slot_data)) continue;
@@ -1211,7 +1269,6 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         }
 
         var final_score = base_score + common_bonus;
-        // Immutables soft penalty: prefer not to overwrite user-seeded letters unless needed.
         var imm_mode = variable_global_exists("immutables_mode") ? global.immutables_mode : 0;
         if (imm_mode == 1) {
             var ow = crossword_solver_seed_overwrite_count(vs, slot_data, w);
@@ -1223,16 +1280,16 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
         }
 
         array_resize(ranked, ranked_count + 1);
-        for (var j = ranked_count; j > ins; j--) {
-            ranked[j] = ranked[j - 1];
+        for (var cc_j = ranked_count; cc_j > ins; cc_j--) {
+            ranked[cc_j] = ranked[cc_j - 1];
         }
         ranked[ins] = { w: w, s: final_score };
         ranked_count++;
     }
 
     out = array_create(ranked_count, "");
-    for (var k = 0; k < ranked_count; k++) {
-        out[k] = ranked[k].w;
+    for (var cc_k = 0; cc_k < ranked_count; cc_k++) {
+        out[cc_k] = ranked[cc_k].w;
     }
 
     if (mode == 2) array_shuffle(out);

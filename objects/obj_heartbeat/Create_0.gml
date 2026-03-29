@@ -741,6 +741,7 @@ global.wordLookup = ds_map_create();
 global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
 global.prefixSetByLength = ds_map_create(); // prefixSetByLength[len][prefix] = true; O(1) prefix lookup
+global.posIndexByLength = ds_map_create();  // posIndexByLength["len:pos:letter"] -> ds_list of words
 
 global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
 global.allow_phrases = true; // If false, skip long phrase-like entries during dictionary load.
@@ -838,6 +839,23 @@ if (word_file == "") {
                         ds_map_add(psmap, pfx, true);
                     }
                     pfx_len++;
+                }
+
+                // Build posIndexByLength: "len:pos:letter" -> ds_list of matching words
+                var pos_key_base = string(wlen) + ":";
+                var pos_idx = 1;
+                repeat (wlen) {
+                    var pos_ch = string_char_at(word, pos_idx);
+                    var pos_key = pos_key_base + string(pos_idx) + ":" + pos_ch;
+                    var pos_list;
+                    if (!ds_map_exists(global.posIndexByLength, pos_key)) {
+                        pos_list = ds_list_create();
+                        ds_map_add(global.posIndexByLength, pos_key, pos_list);
+                    } else {
+                        pos_list = global.posIndexByLength[? pos_key];
+                    }
+                    ds_list_add(pos_list, word);
+                    pos_idx++;
                 }
             }
         }

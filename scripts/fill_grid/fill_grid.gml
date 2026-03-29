@@ -1556,13 +1556,21 @@ function crossword_solver_restart_search(vs, reason) {
     if (ds_exists(global.usedWords, ds_type_map)) ds_map_destroy(global.usedWords);
     global.usedWords = ds_map_create();
 
-    // Reset bookkeeping maps.
+    // Reset per-run statistics.
     if (ds_exists(vs.fail_signature_counts, ds_type_map)) { ds_map_destroy(vs.fail_signature_counts); }
-    if (ds_exists(vs.blacklist_map, ds_type_map)) { ds_map_destroy(vs.blacklist_map); }
     if (ds_exists(vs.tries_by_slot, ds_type_map)) { ds_map_destroy(vs.tries_by_slot); }
     vs.fail_signature_counts = ds_map_create();
-    vs.blacklist_map = ds_map_create();
     vs.tries_by_slot = ds_map_create();
+
+    // Preserve blacklist_map across restarts: root-level and sparse-pattern entries remain
+    // valid in the next run and stop the solver re-discovering the same bad choices.
+    // Highly-constrained entries (many fixed letters) are harmless -- they won't be hit
+    // against the blank patterns of a fresh start.
+    if (!ds_exists(vs.blacklist_map, ds_type_map)) {
+        vs.blacklist_map = ds_map_create();
+    }
+    var bl_preserved = ds_map_size(vs.blacklist_map);
+    show_debug_message("[Visual] Restart preserving " + string(bl_preserved) + " blacklist entries");
 
     vs.pending_remove = false;
     vs.pending_frame_idx = -1;

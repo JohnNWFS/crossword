@@ -54,3 +54,15 @@ if (variable_global_exists("prefix2ByLength") && ds_exists(global.prefix2ByLengt
     }
     ds_map_destroy(global.prefix2ByLength);
 }
+
+if (variable_global_exists("prefixSetByLength") && ds_exists(global.prefixSetByLength, ds_type_map)) {
+    var pskey = ds_map_find_first(global.prefixSetByLength);
+    while (!is_undefined(pskey)) {
+        var psmap = global.prefixSetByLength[? pskey];
+        if (ds_exists(psmap, ds_type_map)) {
+            ds_map_destroy(psmap);
+        }
+        pskey = ds_map_find_next(global.prefixSetByLength, pskey);
+    }
+    ds_map_destroy(global.prefixSetByLength);
+}

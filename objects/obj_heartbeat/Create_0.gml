@@ -740,6 +740,7 @@ global.wordList = ds_list_create();
 global.wordLookup = ds_map_create();
 global.wordsByLength = ds_map_create();
 global.prefix2ByLength = ds_map_create();
+global.prefixSetByLength = ds_map_create(); // prefixSetByLength[len][prefix] = true; O(1) prefix lookup
 
 global.fill_vocab_mode = 0; // 0=common-first, 1=common-only, 2=full
 global.allow_phrases = true; // If false, skip long phrase-like entries during dictionary load.
@@ -817,6 +818,24 @@ if (word_file == "") {
                 var p2 = string_char_at(word, 1) + string_char_at(word, 2);
                 if (!ds_map_exists(p2map, p2)) {
                     ds_map_add(p2map, p2, true);
+                }
+
+                // Build prefixSetByLength: store all prefixes of length 2..wlen-1
+                // so crossword_prefix_exists_for_length becomes an O(1) lookup.
+                var pskey = p2key;
+                var psmap;
+                if (!ds_map_exists(global.prefixSetByLength, pskey)) {
+                    psmap = ds_map_create();
+                    ds_map_add(global.prefixSetByLength, pskey, psmap);
+                } else {
+                    psmap = global.prefixSetByLength[? pskey];
+                }
+                var ps_max = wlen - 1;
+                for (var pi = 2; pi <= ps_max; pi++) {
+                    var pfx = string_copy(word, 1, pi);
+                    if (!ds_map_exists(psmap, pfx)) {
+                        ds_map_add(psmap, pfx, true);
+                    }
                 }
             }
         }

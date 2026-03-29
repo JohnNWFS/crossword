@@ -2142,23 +2142,24 @@ function crossword_prefix_exists_for_length(word_len, prefix) {
     if (prefix == "") return true;
 
     var key_len = string(word_len);
-    if (!ds_map_exists(global.wordsByLength, key_len)) {
-        return false;
+
+    // O(1) path: use the precomputed prefix set built at dictionary load time.
+    if (variable_global_exists("prefixSetByLength") && ds_exists(global.prefixSetByLength, ds_type_map)) {
+        if (!ds_map_exists(global.prefixSetByLength, key_len)) return false;
+        var psmap = global.prefixSetByLength[? key_len];
+        return ds_map_exists(psmap, prefix);
     }
 
+    // Fallback O(n) scan if the index isn't available (e.g. very early init).
+    if (!ds_map_exists(global.wordsByLength, key_len)) return false;
     var bucket = global.wordsByLength[? key_len];
     var bucket_count = ds_list_size(bucket);
     var p_len = string_length(prefix);
-
     for (var i = 0; i < bucket_count; i++) {
         global.solver_work_units++;
         crossword_solver_maybe_log_progress();
-        var w = bucket[| i];
-        if (string_copy(w, 1, p_len) == prefix) {
-            return true;
-        }
+        if (string_copy(bucket[| i], 1, p_len) == prefix) return true;
     }
-
     return false;
 }
 

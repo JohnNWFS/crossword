@@ -273,6 +273,26 @@ if (candidate_overlay_active) {
         }
     }
 
+    if (click_left) {
+        var mode_btn_y1 = candidate_list_box_y + 34;
+        var mode_btn_h = 20;
+        var mode_btn_w = 56;
+        var mode_gap = 8;
+        var mode_fit_x1 = candidate_list_box_x + 12;
+        var mode_any_x1 = mode_fit_x1 + mode_btn_w + mode_gap;
+
+        if (point_in_rectangle(mx, my, mode_fit_x1, mode_btn_y1, mode_fit_x1 + mode_btn_w, mode_btn_y1 + mode_btn_h)) {
+            candidate_picker_set_mode(0);
+            set_status("Close words: fits current letters");
+            exit;
+        }
+        if (point_in_rectangle(mx, my, mode_any_x1, mode_btn_y1, mode_any_x1 + mode_btn_w, mode_btn_y1 + mode_btn_h)) {
+            candidate_picker_set_mode(1);
+            set_status("Close words: any same-length entry");
+            exit;
+        }
+    }
+
     if (click_left || click_right || click_middle) {
         if (click_left
             && point_in_rectangle(mx, my, candidate_list_box_x, candidate_list_first_row_y,
@@ -332,7 +352,7 @@ ui_layout_bottom_buttons();
 
 
 // Command: press ? then A or D, then click a cell to open the Close Possibilities picker
-if (!solver_active && !letter_entry_active && !template_list_overlay_active && !candidate_overlay_active) {
+if (!solver_active && !letter_entry_active && !word_entry_active && !template_list_overlay_active && !candidate_overlay_active) {
     // keyboard_lastchar works reliably for punctuation like "?" across platforms
     var ch = keyboard_lastchar;
     if (ch != "" && ch != cmd_lastchar) {
@@ -451,6 +471,17 @@ if (mouse_check_button_pressed(mb_left) && !template_list_overlay_active && !can
                 global.cmd_mode = (global.cmd_mode + 1) mod 3;
                 cmd_stage = 0;
                 set_status((global.cmd_mode == 0) ? "Close words: OFF" : ((global.cmd_mode == 1) ? "Close words: ?A" : "Close words: ?D"));
+                exit;
+            }
+
+            if (r.id == "wordentry") {
+                if (!variable_global_exists("word_entry_mode_enabled")) global.word_entry_mode_enabled = false;
+                global.word_entry_mode_enabled = !global.word_entry_mode_enabled;
+                if (!global.word_entry_mode_enabled) {
+                    word_entry_stop("Word entry mode OFF");
+                } else {
+                    set_status("Word entry mode ON");
+                }
                 exit;
             }
 
@@ -594,6 +625,69 @@ if (letter_entry_active) {
         }
     }
 }
+
+if (word_entry_active) {
+    if (keyboard_check_pressed(vk_escape)) {
+        word_entry_stop("Word entry exited");
+        exit;
+    }
+    if (keyboard_check_pressed(vk_enter)) {
+        word_entry_stop("Word entry committed");
+        exit;
+    }
+
+    if (keyboard_check_pressed(vk_left) && !is_undefined(word_entry_slot) && word_entry_slot.dir == "A") {
+        word_entry_index = max(0, word_entry_index - 1);
+        word_entry_sync_position();
+        exit;
+    }
+    if (keyboard_check_pressed(vk_right) && !is_undefined(word_entry_slot) && word_entry_slot.dir == "A") {
+        word_entry_index = min(word_entry_slot.len - 1, word_entry_index + 1);
+        word_entry_sync_position();
+        exit;
+    }
+    if (keyboard_check_pressed(vk_up) && !is_undefined(word_entry_slot) && word_entry_slot.dir == "D") {
+        word_entry_index = max(0, word_entry_index - 1);
+        word_entry_sync_position();
+        exit;
+    }
+    if (keyboard_check_pressed(vk_down) && !is_undefined(word_entry_slot) && word_entry_slot.dir == "D") {
+        word_entry_index = min(word_entry_slot.len - 1, word_entry_index + 1);
+        word_entry_sync_position();
+        exit;
+    }
+
+    if (keyboard_check_pressed(vk_space)) {
+        if (word_entry_col >= 0 && word_entry_row >= 0 && grid[# word_entry_col, word_entry_row] != "INVALID") {
+            grid[# word_entry_col, word_entry_row] = "";
+            status_text = "Cleared " + string(word_entry_slot.num) + word_entry_slot.dir;
+        }
+        exit;
+    }
+
+    var we_typed = keyboard_lastchar;
+    if (we_typed == "") {
+        word_entry_lastchar = "";
+    } else if (we_typed != word_entry_lastchar) {
+        word_entry_lastchar = we_typed;
+        var we_ch = string_char_at(we_typed, 1);
+        var we_ord = ord(we_ch);
+        if (we_ord >= ord("a") && we_ord <= ord("z")) we_ch = chr(we_ord - 32);
+        if ((ord(we_ch) >= ord("A") && ord(we_ch) <= ord("Z"))
+            && word_entry_col >= 0 && word_entry_row >= 0
+            && grid[# word_entry_col, word_entry_row] != "INVALID") {
+            if (grid[# word_entry_col, word_entry_row] == "") {
+                grid[# word_entry_col, word_entry_row] = we_ch;
+                status_text = "Set " + string(word_entry_slot.num) + word_entry_slot.dir;
+                word_entry_advance();
+            } else {
+                status_text = "Cell already filled in " + string(word_entry_slot.num) + word_entry_slot.dir;
+            }
+            exit;
+        }
+    }
+}
+
 if (mouse_check_button_pressed(mb_left)
     && mouse_x >= padding && mouse_x <= padding + grid_width * cell_size
     && mouse_y >= padding && mouse_y <= padding + grid_height * cell_size) {
@@ -602,6 +696,24 @@ if (mouse_check_button_pressed(mb_left)
     var clicked_j = floor((mouse_y - padding) / cell_size);
 
     if (clicked_i >= 0 && clicked_i < grid_width && clicked_j >= 0 && clicked_j < grid_height) {
+        if (variable_global_exists("word_entry_mode_enabled") && global.word_entry_mode_enabled) {
+            var we_slots = crossword_build_slots();
+            var we_found = undefined;
+            for (var wsi = 0; wsi < array_length(we_slots); wsi++) {
+                var wsd = we_slots[wsi];
+                if (wsd.dir != "A") continue;
+                if (wsd.row == clicked_j && clicked_i >= wsd.col && clicked_i < wsd.col + wsd.len) {
+                    we_found = wsd;
+                    break;
+                }
+            }
+            if (is_undefined(we_found)) {
+                set_status("No Across entry at that cell");
+            } else {
+                word_entry_begin_slot(we_found, clicked_i, clicked_j);
+            }
+            exit;
+        }
 
         // Close possibilities one-shot command: open picker instead of toggling blocks/letters
         if (variable_global_exists("cmd_mode") && global.cmd_mode != 0) {
@@ -625,8 +737,8 @@ if (mouse_check_button_pressed(mb_left)
                 var res = crossword_collect_close_possibilities(found, 240);
                 candidate_slot_data = found;
                 candidate_slot_pattern = res.pattern;
-                if (array_length(res.words) > 0) {
-                    candidate_picker_open(res.words);
+                if (array_length(res.strict_words) > 0 || array_length(res.any_words) > 0) {
+                    candidate_picker_open(res.strict_words, res.any_words);
                 } else {
                     set_status("No suggestions for " + string(found.num) + found.dir + " pattern=" + res.pattern);
                 }
@@ -687,6 +799,25 @@ if (mouse_check_button_pressed(mb_right)
     var r_clicked_j = floor((mouse_y - padding) / cell_size);
 
     if (r_clicked_i >= 0 && r_clicked_i < grid_width && r_clicked_j >= 0 && r_clicked_j < grid_height) {
+        if (variable_global_exists("word_entry_mode_enabled") && global.word_entry_mode_enabled) {
+            var we_slots_r = crossword_build_slots();
+            var we_found_r = undefined;
+            for (var wsri = 0; wsri < array_length(we_slots_r); wsri++) {
+                var wsdr = we_slots_r[wsri];
+                if (wsdr.dir != "D") continue;
+                if (wsdr.col == r_clicked_i && r_clicked_j >= wsdr.row && r_clicked_j < wsdr.row + wsdr.len) {
+                    we_found_r = wsdr;
+                    break;
+                }
+            }
+            if (is_undefined(we_found_r)) {
+                set_status("No Down entry at that cell");
+            } else {
+                word_entry_begin_slot(we_found_r, r_clicked_i, r_clicked_j);
+            }
+            exit;
+        }
+
         if (grid[# r_clicked_i, r_clicked_j] == "INVALID") {
             grid[# r_clicked_i, r_clicked_j] = "";
             status_text = "Removed single block at (" + string(r_clicked_i + 1) + "," + string(r_clicked_j + 1) + ")";

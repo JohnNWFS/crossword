@@ -94,6 +94,11 @@ for (var col_i = 0; col_i < grid_width; col_i++) {
             draw_rectangle_color(screen_col, screen_row, screen_col + cell_size, screen_row + cell_size, c_yellow, c_yellow, c_yellow, c_yellow, false);
             draw_set_alpha(1);
         }
+        if (word_entry_active && col_i == word_entry_col && row_i == word_entry_row) {
+            draw_set_alpha(0.65);
+            draw_rectangle_color(screen_col, screen_row, screen_col + cell_size, screen_row + cell_size, c_lime, c_lime, c_lime, c_lime, false);
+            draw_set_alpha(1);
+        }
 
         var content = grid[# col_i, row_i];
         if (content == "INVALID") {
@@ -239,6 +244,21 @@ if (letter_entry_active) {
     draw_set_color(c_white);
 }
 
+if (word_entry_active && !is_undefined(word_entry_slot)) {
+    draw_set_color(c_aqua);
+    var word_entry_lbl = "Word entry: " + string(word_entry_slot.num) + word_entry_slot.dir
+        + "  Arrows move, Space clears, Enter commits, Esc exits";
+    draw_text_ext(padding, ty, word_entry_lbl, 20, wrap_w);
+    ty += string_height_ext(word_entry_lbl, 20, wrap_w) + 4;
+    draw_set_color(c_white);
+} else if (variable_global_exists("word_entry_mode_enabled") && global.word_entry_mode_enabled) {
+    draw_set_color(c_aqua);
+    var word_entry_pick_lbl = "Word entry ON: left click an Across entry or right click a Down entry";
+    draw_text_ext(padding, ty, word_entry_pick_lbl, 20, wrap_w);
+    ty += string_height_ext(word_entry_pick_lbl, 20, wrap_w) + 4;
+    draw_set_color(c_white);
+}
+
 var show_thinking = solver_active && !template_list_overlay_active;
 if (show_thinking) {
     var cx = room_width * 0.5;
@@ -328,11 +348,6 @@ if (candidate_overlay_active) {
         my = device_mouse_y_to_gui(0);
     }
 
-    draw_set_alpha(0.90);
-    draw_set_color(c_black);
-    draw_rectangle(0, 0, gui_w, gui_h, false);
-    draw_set_alpha(1);
-
     var box_margin = 48;
     var box_w = min(520, gui_w - (box_margin * 2));
     if (box_w < 300) box_w = gui_w - 20;
@@ -355,9 +370,41 @@ var footer_h = show_footer ? 78 : 0;
     candidate_list_box_h = box_h;
     candidate_list_first_row_y = candidate_list_box_y + 68;
 
+    draw_set_alpha(0.95);
+    draw_set_color(c_black);
+    draw_rectangle(candidate_list_box_x + 1, candidate_list_box_y + 1, candidate_list_box_x + box_w - 1, candidate_list_box_y + box_h - 1, false);
+    draw_set_alpha(1);
     draw_set_color(c_white);
     draw_rectangle(candidate_list_box_x, candidate_list_box_y, candidate_list_box_x + box_w, candidate_list_box_y + box_h, true);
     draw_text(candidate_list_box_x + 12, candidate_list_box_y + 12, "Close possibilities");
+
+    var mode_btn_y1 = candidate_list_box_y + 34;
+    var mode_btn_h = 20;
+    var mode_btn_w = 56;
+    var mode_gap = 8;
+    var mode_fit_x1 = candidate_list_box_x + 12;
+    var mode_any_x1 = mode_fit_x1 + mode_btn_w + mode_gap;
+    var mode_fit_on = (candidate_mode == 0);
+    var mode_any_on = (candidate_mode == 1);
+
+    draw_set_alpha(mode_fit_on ? 0.45 : 0.18);
+    draw_set_color(mode_fit_on ? c_aqua : c_white);
+    draw_rectangle(mode_fit_x1, mode_btn_y1, mode_fit_x1 + mode_btn_w, mode_btn_y1 + mode_btn_h, false);
+    draw_set_alpha(mode_any_on ? 0.45 : 0.18);
+    draw_set_color(mode_any_on ? c_yellow : c_white);
+    draw_rectangle(mode_any_x1, mode_btn_y1, mode_any_x1 + mode_btn_w, mode_btn_y1 + mode_btn_h, false);
+    draw_set_alpha(1);
+
+    var mode_ha = draw_get_halign();
+    var mode_va = draw_get_valign();
+    draw_set_halign(fa_center);
+    draw_set_valign(fa_middle);
+    draw_set_color(c_white);
+    draw_text(mode_fit_x1 + (mode_btn_w * 0.5), mode_btn_y1 + (mode_btn_h * 0.5), "Fits");
+    draw_text(mode_any_x1 + (mode_btn_w * 0.5), mode_btn_y1 + (mode_btn_h * 0.5), "Any");
+    draw_set_halign(mode_ha);
+    draw_set_valign(mode_va);
+    draw_set_color(c_white);
 
 // Footer paging controls + alphabet jump (only when there are lots of candidates)
 if (show_footer) {
@@ -378,7 +425,8 @@ if (show_footer) {
     // Page indicator (left side of footer)
     draw_set_color(c_ltgray);
     var flt = (variable_instance_exists(id, "candidate_filter_letter") && candidate_filter_letter != "") ? (candidate_filter_letter + ": ") : "";
-    var ptxt = flt + "page " + string(candidate_page + 1) + "/" + string(candidate_pages) + " (" + string(total_all) + ")";
+    var mode_lbl = (candidate_mode == 0) ? "fits" : "any";
+    var ptxt = mode_lbl + "  " + flt + "page " + string(candidate_page + 1) + "/" + string(candidate_pages) + " (" + string(total_all) + ")";
     draw_text(candidate_list_box_x + 12, nav_y + 2, ptxt);
     draw_set_color(c_white);
 
@@ -471,7 +519,7 @@ if (show_footer) {
 
 if (!is_undefined(candidate_slot_data)) {
         draw_set_color(c_ltgray);
-        draw_text(candidate_list_box_x + 12, candidate_list_box_y + 34, string(candidate_slot_data.num) + candidate_slot_data.dir + " pattern=" + candidate_slot_pattern);
+        draw_text(candidate_list_box_x + 12, candidate_list_box_y + 58, string(candidate_slot_data.num) + candidate_slot_data.dir + " pattern=" + candidate_slot_pattern);
         draw_set_color(c_white);
     }
 
@@ -656,6 +704,7 @@ if (template_list_overlay_active) {
 
 
 
+if (!candidate_overlay_active) {
 // Settings panel (right side)
 ui_recalc_layout();
 
@@ -814,6 +863,11 @@ if (ui_panel_visible) {
             var cm_lbl = (cm == 0) ? "OFF" : ((cm == 1) ? "?A" : "?D");
             draw_set_color(c_white);
             draw_text(r.x2 - string_width(cm_lbl), r.y1 + 2, cm_lbl);
+        } else if (r.id == "wordentry") {
+            var we = (variable_global_exists("word_entry_mode_enabled") && global.word_entry_mode_enabled);
+            var we_lbl = we ? "ON" : "OFF";
+            draw_set_color(we ? c_aqua : c_white);
+            draw_text(r.x2 - string_width(we_lbl), r.y1 + 2, we_lbl);
         } else if (r.id == "check") {
             var lbl = "Run";
             draw_set_alpha(0.35);
@@ -889,6 +943,7 @@ if (solver_active && !template_list_overlay_active) {
     draw_text(px + 70, py + 24, "hb=" + string(global.solver_heartbeat));
     draw_text(px + 8, py + 42, "wu=" + string(global.solver_work_units));
     draw_text(px + 8, py + 58, "att=" + string(global.fill_attempt_count));
+}
 }
 
 

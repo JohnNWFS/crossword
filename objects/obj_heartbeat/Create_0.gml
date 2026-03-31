@@ -75,32 +75,34 @@ ui_layout_bottom_buttons = function() {
         var y2 = room_height - btn_h - 24;
         var y1 = y2 - btn_h - btn_gap;
 
-        // Row 1: Load, Save, Fill
+        // Row 1: Load, Save, Pattern
         var row1 = 3;
         var w1 = floor((room_width - (btn_pad * 2) - (btn_gap * (row1 - 1))) / row1);
         var x1 = btn_pad;
         with (obj_loadButton) { x = x1; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
         with (obj_saveButton) { x = x1 + (w1 + btn_gap) * 1; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
-        with (obj_fillGrid) { x = x1 + (w1 + btn_gap) * 2; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
+        with (obj_makePattern) { x = x1 + (w1 + btn_gap) * 2; y = y1; image_xscale = w1 / 64; image_yscale = btn_h / 64; }
 
-        // Row 2: Stop, Export
-        var row2 = 2;
+        // Row 2: Fill, Stop, Export
+        var row2 = 3;
         var w2 = floor((room_width - (btn_pad * 2) - (btn_gap * (row2 - 1))) / row2);
         var x2 = btn_pad;
-        with (obj_stopFill) { x = x2; y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
-        with (obj_testWordList) { x = x2 + (w2 + btn_gap); y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
+        with (obj_fillGrid) { x = x2; y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
+        with (obj_stopFill) { x = x2 + (w2 + btn_gap) * 1; y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
+        with (obj_testWordList) { x = x2 + (w2 + btn_gap) * 2; y = y2; image_xscale = w2 / 64; image_yscale = btn_h / 64; }
     } else {
         // Single row on desktop
         var btn_y = room_height - btn_h - 24;
-        var count = 5;
+        var count = 6;
         var btn_w = floor((room_width - (btn_pad * 2) - (btn_gap * (count - 1))) / count);
         var bx = btn_pad;
 
         with (obj_loadButton) { x = bx + (btn_w + btn_gap) * 0; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
         with (obj_saveButton) { x = bx + (btn_w + btn_gap) * 1; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
-        with (obj_fillGrid) { x = bx + (btn_w + btn_gap) * 2; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
-        with (obj_stopFill) { x = bx + (btn_w + btn_gap) * 3; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
-        with (obj_testWordList) { x = bx + (btn_w + btn_gap) * 4; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_makePattern) { x = bx + (btn_w + btn_gap) * 2; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_fillGrid) { x = bx + (btn_w + btn_gap) * 3; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_stopFill) { x = bx + (btn_w + btn_gap) * 4; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
+        with (obj_testWordList) { x = bx + (btn_w + btn_gap) * 5; y = btn_y; image_xscale = btn_w / 64; image_yscale = btn_h / 64; }
     }
 };
 
@@ -152,6 +154,7 @@ help_build_lines = function() {
         "  to a template file.",
         "- Left-click Load Template to type a template name.",
         "- Right-click Load Template to open a list of saved templates.",
+        "- Make Pattern applies a mirrored, fillable block layout for the current size.",
         "",
         "Fill",
         "- Fill Grid runs the solver.",
@@ -175,6 +178,11 @@ help_build_lines = function() {
         "Close words",
         "- Type ? then A or D, then click a cell to open Close possibilities.",
         "- In the popup: click A-Z to filter suggestions by starting letter.",
+        "Word entry",
+        "- Toggle Word entry ON in Settings for direct answer entry.",
+        "- Left click chooses an Across entry, right click chooses a Down entry.",
+        "- Arrow keys move within the active entry, typing overwrites the current cell.",
+        "- Space clears the current cell. Enter commits. Esc exits and keeps the letters.",
         "Check grid",
         "- Runs a feasibility check (every slot must have at least one candidate).",
         "",
@@ -230,13 +238,42 @@ candidate_list_total = 0;
 candidate_list_total_all = 0;
 candidate_filter_letter = "";
 candidate_list_filtered_words = [];
+candidate_words_strict = [];
+candidate_words_any = [];
+candidate_mode = 0; // 0=strict fit, 1=any same-length
 candidate_page_size = 10;
 candidate_page = 0;
 candidate_pages = 1;
 
+candidate_picker_get_source_words = function() {
+    return (candidate_mode == 0) ? candidate_words_strict : candidate_words_any;
+};
+
+candidate_picker_pick_auto_letter = function(_words) {
+    if (!is_array(_words) || array_length(_words) <= 0) return "";
+
+    if (string_length(candidate_slot_pattern) > 0) {
+        var first = string_char_at(candidate_slot_pattern, 1);
+        if (first != "_") return first;
+    }
+
+    for (var code = ord("A"); code <= ord("Z"); code++) {
+        var ch = chr(code);
+        for (var i = 0; i < array_length(_words); i++) {
+            var w = _words[i];
+            if (string_length(w) > 0 && string_char_at(w, 1) == ch) return ch;
+        }
+    }
+
+    return "";
+};
+
 candidate_picker_apply_page = function() {
-    if (!is_array(candidate_list_all_words)) candidate_list_all_words = [];
-    var src = (candidate_filter_letter != "") ? candidate_list_filtered_words : candidate_list_all_words;
+    var src_all = candidate_picker_get_source_words();
+    if (!is_array(src_all)) src_all = [];
+    candidate_list_total_all = array_length(src_all);
+
+    var src = (candidate_filter_letter != "") ? candidate_list_filtered_words : src_all;
     candidate_list_total = array_length(src);
     candidate_pages = max(1, ceil(candidate_list_total / max(1, candidate_page_size)));
     candidate_page = clamp(candidate_page, 0, candidate_pages - 1);
@@ -259,27 +296,28 @@ candidate_picker_close = function() {
     candidate_list_total_all = 0;
     candidate_filter_letter = "";
     candidate_list_filtered_words = [];
+    candidate_words_strict = [];
+    candidate_words_any = [];
+    candidate_mode = 0;
     candidate_page = 0;
     candidate_pages = 1;
     candidate_slot_data = undefined;
     candidate_slot_pattern = "";
 };
 
-candidate_picker_open = function(_words) {
-    candidate_list_all_words = _words;
-    candidate_list_total_all = array_length(candidate_list_all_words);
+candidate_picker_set_mode = function(_mode) {
+    candidate_mode = clamp(_mode, 0, 1);
+    candidate_page = 0;
     candidate_filter_letter = "";
     candidate_list_filtered_words = [];
-    candidate_page = 0;
     candidate_picker_apply_page();
+};
 
-    // If the first character is blank and we have lots of options, start on a random page
-    if (candidate_list_total > candidate_page_size) {
-        if (string_length(candidate_slot_pattern) > 0 && string_char_at(candidate_slot_pattern, 1) == "_") {
-            candidate_page = irandom(candidate_pages - 1);
-            candidate_picker_apply_page();
-        }
-    }
+candidate_picker_open = function(_strict_words, _any_words) {
+    candidate_words_strict = _strict_words;
+    candidate_words_any = _any_words;
+    candidate_list_all_words = candidate_words_strict;
+    candidate_picker_set_mode(0);
 
     candidate_overlay_active = true;
 };
@@ -298,68 +336,13 @@ candidate_picker_set_filter = function(_ch) {
         return true;
     }
 
-    // 1) Fast path: filter the already-collected pool
+    var source_words = candidate_picker_get_source_words();
     var tmp = [];
     var out = 0;
-    for (var i = 0; i < array_length(candidate_list_all_words); i++) {
-        var w = candidate_list_all_words[i];
+    for (var i = 0; i < array_length(source_words); i++) {
+        var w = source_words[i];
         if (string_length(w) > 0 && string_char_at(w, 1) == up) {
             tmp[out++] = w;
-        }
-    }
-
-    // 2) Fallback: if the pool is biased (often all A-words), scan the full bucket for this length+pattern
-    if (out <= 0 && variable_global_exists("wordsByLength") && ds_exists(global.wordsByLength, ds_type_map)
-        && !is_undefined(candidate_slot_data)) {
-        var key_len = string(candidate_slot_data.len);
-        if (ds_map_exists(global.wordsByLength, key_len)) {
-            var bucket = global.wordsByLength[? key_len];
-            var bucket_count = ds_list_size(bucket);
-
-            var pattern = candidate_slot_pattern;
-            var fixed_letters = "";
-            var fixed_count = 0;
-            for (var pat_i = 1; pat_i <= string_length(pattern); pat_i++) {
-                var pc = string_char_at(pattern, pat_i);
-                if (pc != "_") { fixed_letters += pc; fixed_count++; }
-            }
-            var min_shared = 1;
-            if (fixed_count >= 3) min_shared = 2;
-
-            var strict = [];
-            var loose = [];
-            var s_count = 0;
-            var l_count = 0;
-            var collect_cap = 240;
-
-            for (var b = 0; b < bucket_count; b++) {
-                var ww = bucket[| b];
-                if (string_length(ww) <= 0 || string_char_at(ww, 1) != up) continue;
-
-                if (crossword_word_matches_pattern(ww, pattern)) {
-                    strict[s_count++] = ww;
-                } else if (fixed_count > 0) {
-                    var shared = 0;
-                    for (var k = 1; k <= string_length(fixed_letters); k++) {
-                        var fl = string_char_at(fixed_letters, k);
-                        if (string_pos(fl, ww) > 0) shared++;
-                        if (shared >= min_shared) break;
-                    }
-                    if (shared >= min_shared) {
-                        loose[l_count++] = ww;
-                    }
-                }
-
-                if (s_count + l_count >= collect_cap) break;
-            }
-
-            if (array_length(strict) > 1) array_shuffle(strict);
-            if (array_length(loose) > 1) array_shuffle(loose);
-
-            tmp = [];
-            out = 0;
-            for (var si = 0; si < array_length(strict); si++) tmp[out++] = strict[si];
-            for (var li = 0; li < array_length(loose) && out < collect_cap; li++) tmp[out++] = loose[li];
         }
     }
 
@@ -369,10 +352,6 @@ candidate_picker_set_filter = function(_ch) {
     candidate_list_filtered_words = tmp;
     candidate_page = 0;
     candidate_picker_apply_page();
-    if (candidate_pages > 1) {
-        candidate_page = irandom(candidate_pages - 1);
-        candidate_picker_apply_page();
-    }
     return true;
 };
 
@@ -392,6 +371,7 @@ global.immutables_mode = 0; // 0=Strict, 1=Soft, 2=Off
 global.mobile_layout = false;
 global.edit_mode = 0; // 0=blocks, 1=letters (used on small touch screens)
 global.brute_burst_remaining = 0;
+global.word_entry_mode_enabled = false;
 
 // Mobile letter-entry async prompt state (so mobile can open the OS keyboard reliably)
 cell_dialog_request_id = -1;
@@ -428,6 +408,12 @@ letter_entry_active = false;
 letter_entry_prev_active = false;
 letter_entry_col = -1;
 letter_entry_row = -1;
+word_entry_active = false;
+word_entry_slot = undefined;
+word_entry_index = 0;
+word_entry_col = -1;
+word_entry_row = -1;
+word_entry_lastchar = "";
 
 solver_active = false;
 global.visual_solver = undefined;
@@ -444,6 +430,57 @@ ds_grid_clear(grid, "");
 
 set_status = function(_msg) {
     status_text = _msg;
+};
+word_entry_sync_position = function() {
+    if (!word_entry_active || is_undefined(word_entry_slot)) return;
+
+    word_entry_index = clamp(word_entry_index, 0, word_entry_slot.len - 1);
+    word_entry_col = word_entry_slot.col + ((word_entry_slot.dir == "A") ? word_entry_index : 0);
+    word_entry_row = word_entry_slot.row + ((word_entry_slot.dir == "D") ? word_entry_index : 0);
+};
+word_entry_advance = function() {
+    if (!word_entry_active || is_undefined(word_entry_slot)) return;
+
+    var next_index = word_entry_index + 1;
+    if (next_index >= word_entry_slot.len) next_index = 0;
+
+    var next_col = word_entry_slot.col + ((word_entry_slot.dir == "A") ? next_index : 0);
+    var next_row = word_entry_slot.row + ((word_entry_slot.dir == "D") ? next_index : 0);
+
+    if (next_col < 0 || next_col >= grid_width || next_row < 0 || next_row >= grid_height
+        || grid[# next_col, next_row] == "INVALID") {
+        next_index = 0;
+    }
+
+    word_entry_index = next_index;
+    word_entry_sync_position();
+};
+word_entry_begin_slot = function(_slot, _col, _row) {
+    if (is_undefined(_slot)) return false;
+
+    word_entry_active = true;
+    word_entry_slot = _slot;
+    word_entry_index = 0;
+    word_entry_lastchar = "";
+
+    if (_slot.dir == "A") {
+        word_entry_index = clamp(_col - _slot.col, 0, _slot.len - 1);
+    } else {
+        word_entry_index = clamp(_row - _slot.row, 0, _slot.len - 1);
+    }
+
+    word_entry_sync_position();
+    set_status("Word entry: " + string(_slot.num) + _slot.dir);
+    return true;
+};
+word_entry_stop = function(_msg) {
+    word_entry_active = false;
+    word_entry_slot = undefined;
+    word_entry_index = 0;
+    word_entry_col = -1;
+    word_entry_row = -1;
+    word_entry_lastchar = "";
+    if (_msg != "") set_status(_msg);
 };
 set_long_gate_index = function(_idx) {
     if (_idx < 0 || _idx >= array_length(long_gate_options)) return;
@@ -508,6 +545,7 @@ ui_recalc_layout = function() {
     add_row("immutables", "cycle3", "Immutables");
     add_row("gate", "gate", "Long-slot gate");
     add_row("closeposs", "cycle3", "Close words");
+    add_row("wordentry", "toggle", "Word entry");
     add_row("check", "action", "Check grid");
     add_row("advanced", "toggle", "Advanced");
 
@@ -630,6 +668,177 @@ new_blank_grid = function() {
     set_status("New blank " + string(grid_width) + "x" + string(grid_height) + " grid");
 };
 
+apply_pattern_rows = function(_rows) {
+    var row_count = array_length(_rows);
+    if (row_count != grid_height) return false;
+
+    for (var row_i = 0; row_i < grid_height; row_i++) {
+        var row_str = _rows[row_i];
+        if (string_length(row_str) != grid_width) return false;
+        for (var col_i = 0; col_i < grid_width; col_i++) {
+            var ch = string_char_at(row_str, col_i + 1);
+            grid[# col_i, row_i] = (ch == "#") ? "INVALID" : "";
+        }
+    }
+
+    current_template_name = "";
+    return true;
+};
+
+pattern_rows_transpose = function(_rows) {
+    var out = array_create(array_length(_rows), "");
+    for (var row_i = 0; row_i < grid_height; row_i++) {
+        var row_str = "";
+        for (var col_i = 0; col_i < grid_width; col_i++) {
+            row_str += string_char_at(_rows[col_i], row_i + 1);
+        }
+        out[row_i] = row_str;
+    }
+    return out;
+};
+
+pattern_rows_flip_h = function(_rows) {
+    var out = array_create(array_length(_rows), "");
+    for (var row_i = 0; row_i < grid_height; row_i++) {
+        var row_src = _rows[row_i];
+        var row_out = "";
+        for (var col_i = string_length(row_src); col_i >= 1; col_i--) {
+            row_out += string_char_at(row_src, col_i);
+        }
+        out[row_i] = row_out;
+    }
+    return out;
+};
+
+pattern_rows_flip_v = function(_rows) {
+    var out = array_create(array_length(_rows), "");
+    for (var row_i = 0; row_i < grid_height; row_i++) {
+        out[row_i] = _rows[grid_height - 1 - row_i];
+    }
+    return out;
+};
+
+build_realistic_block_pattern = function() {
+    if (solver_active) crossword_solver_stop(false);
+    if (letter_entry_active) {
+        letter_entry_active = false;
+        letter_entry_prev_active = false;
+        letter_entry_col = -1;
+        letter_entry_row = -1;
+    }
+    if (word_entry_active) word_entry_stop("");
+    if (candidate_overlay_active) candidate_picker_close();
+    if (template_list_overlay_active) template_list_overlay_active = false;
+    if (help_overlay_active) help_overlay_active = false;
+
+    var base_rows = [];
+    switch (grid_width) {
+        case 5:
+            base_rows = [
+                "#...#",
+                ".....",
+                ".....",
+                ".....",
+                "#...#"
+            ];
+            break;
+        case 7:
+            base_rows = [
+                "#.....#",
+                "#.....#",
+                ".......",
+                ".......",
+                ".......",
+                "#.....#",
+                "#.....#"
+            ];
+            break;
+        case 9:
+            base_rows = [
+                "...###...",
+                ".....#...",
+                ".....#...",
+                "#........",
+                "###...###",
+                "........#",
+                "...#.....",
+                "...#.....",
+                "...###..."
+            ];
+            break;
+        case 11:
+            base_rows = [
+                "##....##...",
+                "......#....",
+                "......#....",
+                "....#...###",
+                "...##......",
+                "...#...#...",
+                "......##...",
+                "###...#....",
+                "....#......",
+                "....#......",
+                "...##....##"
+            ];
+            break;
+        case 13:
+            base_rows = [
+                "#.....##.....",
+                "#.....#......",
+                "#............",
+                ".....#...#...",
+                "...#...#.....",
+                "...##......##",
+                "#...#...#...#",
+                "##......##...",
+                ".....#...#...",
+                "...#...#.....",
+                "............#",
+                "......#.....#",
+                ".....##.....#"
+            ];
+            break;
+        case 15:
+            base_rows = [
+                "...#.....#...##",
+                "...#.....#....#",
+                "...............",
+                "......#...##...",
+                ".....###...#...",
+                "#...##.........",
+                "....#...#......",
+                "...............",
+                "......#...#....",
+                ".........##...#",
+                "...#...###.....",
+                "...##...#......",
+                "...............",
+                "#....#.....#...",
+                "##...#.....#..."
+            ];
+            break;
+    }
+
+    if (array_length(base_rows) <= 0) {
+        set_status("No built-in pattern for " + string(grid_width) + "x" + string(grid_height));
+        return false;
+    }
+
+    var rows = base_rows;
+    if (irandom(1) == 1) rows = pattern_rows_transpose(rows);
+    if (irandom(1) == 1) rows = pattern_rows_flip_h(rows);
+    if (irandom(1) == 1) rows = pattern_rows_flip_v(rows);
+
+    if (!apply_pattern_rows(rows)) {
+        set_status("Pattern apply failed");
+        return false;
+    }
+
+    global.fill_attempt_count = 0;
+    set_status("Applied realistic " + string(grid_width) + "x" + string(grid_height) + " block pattern");
+    return true;
+};
+
 save_template = function(_template_name) {
     var safe = sanitize_template_name(_template_name);
     var filename = "template_" + safe + ".ini";
@@ -749,6 +958,21 @@ global.allow_phrases = true; // If false, skip long phrase-like entries during d
 global.phrase_min_len = 10; // Treat entries >= this length as phrases when allow_phrases is false.
 global.commonWordLookup = ds_map_create();
 global.commonWordRank = ds_map_create();
+global.discouragedFillLookup = ds_map_create();
+
+var discouraged_fill_words = [
+    "AAL","ADO","AERO","AIN","AIRTED","ALIENER","ALUM","AORISTS","ATCO","ATT","AVE",
+    "DOAT","ENATE","ENATES","ENON","ERATH","ERE","EREAT","ERR","ETWEE","GYRES","HE",
+    "HEREAT","ITHER","IHLEN","IN","INC","LAH","ME","NAEVI","NAKEDER","NANA","NENES",
+    "NERAL","NONET","NOTI","OTHO","PERITI","PYXIE","RERAN","RET","REEDER","RENTIER",
+    "RISCO","ROOSE","ROTOS","SE","SERENER","SIEVA","SIS","SNORE","SNOTS","SRI","ST",
+    "STAPHS","TAENIA","TAFIA","TERRIT","TET","THE","TI","TIT","TODAYS","TORA","TORAHS",
+    "TOTHER","TUT","USEE","YIN"
+];
+for (var dfi = 0; dfi < array_length(discouraged_fill_words); dfi++) {
+    var dfw = discouraged_fill_words[dfi];
+    if (!ds_map_exists(global.discouragedFillLookup, dfw)) ds_map_add(global.discouragedFillLookup, dfw, true);
+}
 
 var candidate_files = [
     "datafiles/wordgamedictionary.com_twl06_download_twl06.txt",

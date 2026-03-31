@@ -506,76 +506,36 @@ function crossword_check_grid_feasibility() {
 
 function crossword_collect_close_possibilities(slot_data, max_out) {
     var pattern = crossword_slot_word(slot_data);
-    var fixed_letters = "";
-    var fixed_count = 0;
-    for (var i = 1; i <= string_length(pattern); i++) {
-        var ch = string_char_at(pattern, i);
-        if (ch != "_") { fixed_letters += ch; fixed_count++; }
-    }
-
-    var min_shared = 1;
-    if (fixed_count >= 3) min_shared = 2;
-
     var key_len = string(slot_data.len);
     if (!variable_global_exists("wordsByLength") || !ds_exists(global.wordsByLength, ds_type_map)) {
-        return { pattern: pattern, words: [] };
+        return { pattern: pattern, strict_words: [], any_words: [] };
     }
     if (!ds_map_exists(global.wordsByLength, key_len)) {
-        return { pattern: pattern, words: [] };
+        return { pattern: pattern, strict_words: [], any_words: [] };
     }
     var bucket = global.wordsByLength[? key_len];
     var bucket_count = ds_list_size(bucket);
 
     var strict = [];
-    var loose = [];
     var s_count = 0;
-    var l_count = 0;
-    var collect_cap = 240; // keep it snappy; we only need a few suggestions
+    var any_words = [];
+    var any_count = 0;
+    var collect_cap = max(1, max_out);
 
-    // Important rule for puzzle-making UX:
-    // If the first character is already set (e.g. "SE_"), only suggest strict pattern matches.
-    // Loose matches are only useful when the entry begins blank.
-    var strict_only = (string_length(pattern) > 0 && string_char_at(pattern, 1) != "_");
-
-    // Phase 1: collect strict matches (scan until strict is full)
     for (var b = 0; b < bucket_count; b++) {
         var w = bucket[| b];
         if (crossword_word_matches_pattern(w, pattern)) {
             strict[s_count++] = w;
-            if (s_count >= collect_cap) break;
+        }
+        if (any_count < collect_cap) {
+            any_words[any_count++] = w;
         }
     }
 
-    // Phase 2: optionally collect loose matches (only when the first character is blank)
-    if (!strict_only && fixed_count > 0) {
-        for (var b2 = 0; b2 < bucket_count; b2++) {
-            var w2 = bucket[| b2];
-            if (crossword_word_matches_pattern(w2, pattern)) continue;
-
-            var shared = 0;
-            for (var k = 1; k <= string_length(fixed_letters); k++) {
-                var fl = string_char_at(fixed_letters, k);
-                if (string_pos(fl, w2) > 0) shared++;
-                if (shared >= min_shared) break;
-            }
-            if (shared >= min_shared) {
-                loose[l_count++] = w2;
-                if (s_count + l_count >= collect_cap) break;
-            }
-        }
-    }
     if (array_length(strict) > 1) array_shuffle(strict);
-    if (array_length(loose) > 1) array_shuffle(loose);
+    if (array_length(any_words) > 1) array_shuffle(any_words);
 
-    var out = [];
-    var out_count = 0;
-    var take_strict = min(max_out, array_length(strict));
-    for (var i = 0; i < take_strict; i++) out[out_count++] = strict[i];
-    var remaining = max_out - out_count;
-    var take_loose = min(remaining, array_length(loose));
-    for (var j = 0; j < take_loose; j++) out[out_count++] = loose[j];
-
-    return { pattern: pattern, words: out };
+    return { pattern: pattern, strict_words: strict, any_words: any_words };
 }
 
 function fill_grid(posX, posY) {
@@ -1080,6 +1040,40 @@ function crossword_word_commonness_score(word) {
     return score_val + random(0.05);
 }
 
+function crossword_word_quality_penalty(word, is_common, has_freq_map) {
+    var n = string_length(word);
+    var penalty = 0.0;
+    var has_freq = has_freq_map && ds_map_exists(global.wordFreqScore, word);
+    var freq_score = has_freq ? global.wordFreqScore[? word] : 0.0;
+
+    if (variable_global_exists("discouragedFillLookup") && ds_exists(global.discouragedFillLookup, ds_type_map)) {
+        if (ds_map_exists(global.discouragedFillLookup, word)) {
+            penalty += 6000.0;
+        }
+    }
+
+    if (n <= 2) {
+        if (!is_common && freq_score < 1400.0) penalty += 3500.0;
+    } else if (n == 3) {
+        if (!is_common && freq_score < 1100.0) penalty += 1800.0;
+    } else if (n == 4) {
+        if (!is_common && freq_score < 850.0) penalty += 700.0;
+    } else {
+        if (!is_common && freq_score < 400.0) penalty += 150.0;
+    }
+
+    if (!is_common && !has_freq && n <= 5) penalty += 500.0;
+
+    if (n >= 5) {
+        if (string_copy(word, n - 1, 2) == "ER" && !is_common && freq_score < 900.0) penalty += 350.0;
+        if (n >= 6 && string_copy(word, n - 2, 3) == "EST" && !is_common && freq_score < 900.0) penalty += 500.0;
+        if (n >= 4 && string_copy(word, n - 1, 2) == "ED" && !is_common && freq_score < 800.0) penalty += 250.0;
+        if (n >= 5 && string_copy(word, n - 2, 3) == "ING" && !is_common && freq_score < 900.0) penalty += 200.0;
+    }
+
+    return penalty;
+}
+
 
 function crossword_solver_maybe_log_progress() {
     if (!variable_global_exists("solver_work_units")) return;
@@ -1155,6 +1149,43 @@ function crossword_solver_build_slot_neighbors(slots) {
     }
 
     return neighbors;
+}
+
+function crossword_solver_build_slot_components(slots, neighbors) {
+    var total = array_length(slots);
+    var comp_ids = array_create(total, -1);
+    var next_comp = 0;
+
+    for (var start = 0; start < total; start++) {
+        if (comp_ids[start] != -1) continue;
+
+        var queue = [start];
+        var q_head = 0;
+        comp_ids[start] = next_comp;
+
+        while (q_head < array_length(queue)) {
+            var cur = queue[q_head];
+            q_head++;
+
+            var adj = neighbors[cur];
+            for (var i = 0; i < array_length(adj); i++) {
+                var nb = adj[i];
+                if (comp_ids[nb] != -1) continue;
+                comp_ids[nb] = next_comp;
+                queue[array_length(queue)] = nb;
+            }
+        }
+
+        next_comp++;
+    }
+
+    return { ids: comp_ids, count: next_comp };
+}
+
+function crossword_solver_component_label(vs, slot_idx) {
+    if (is_undefined(vs) || is_undefined(vs.slot_component_ids) || !is_array(vs.slot_component_ids)) return "?";
+    if (slot_idx < 0 || slot_idx >= array_length(vs.slot_component_ids)) return "?";
+    return string(vs.slot_component_ids[slot_idx]);
 }
 
 function crossword_solver_build_slots_by_length(slots) {
@@ -1237,6 +1268,9 @@ function crossword_solver_init_domain_cache(vs) {
     }
 
     vs.slot_neighbors = crossword_solver_build_slot_neighbors(vs.slots);
+    var comp_info = crossword_solver_build_slot_components(vs.slots, vs.slot_neighbors);
+    vs.slot_component_ids = comp_info.ids;
+    vs.slot_component_count = comp_info.count;
     vs.slots_by_length = crossword_solver_build_slots_by_length(vs.slots);
 }
 
@@ -1454,7 +1488,8 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
             base_score = crossword_word_commonness_score(w);
         }
 
-        var final_score = base_score + freq_bonus;
+        var quality_penalty = crossword_word_quality_penalty(w, is_common, has_freq_map);
+        var final_score = base_score + freq_bonus - quality_penalty;
         var imm_mode = variable_global_exists("immutables_mode") ? global.immutables_mode : 0;
         if (imm_mode == 1) {
             var ow = crossword_solver_seed_overwrite_count(vs, slot_data, w);
@@ -1484,6 +1519,49 @@ function crossword_solver_collect_candidates(vs, slot_idx, pattern) {
 }
 
 function crossword_solver_choose_mrv_slot(vs) {
+    var all_indices = [];
+    for (var ai = 0; ai < array_length(vs.slots); ai++) all_indices[ai] = ai;
+    return crossword_solver_choose_mrv_slot_from_indices(vs, all_indices);
+}
+
+function crossword_solver_collect_local_slot_indices(vs, slot_idx) {
+    var total = array_length(vs.slots);
+    var seen = array_create(total, false);
+    var out = [];
+
+    if (slot_idx < 0 || slot_idx >= total) return out;
+
+    seen[slot_idx] = true;
+    out[array_length(out)] = slot_idx;
+
+    if (!is_undefined(vs.slot_neighbors) && is_array(vs.slot_neighbors) && slot_idx < array_length(vs.slot_neighbors)) {
+        var n1 = vs.slot_neighbors[slot_idx];
+        for (var i = 0; i < array_length(n1); i++) {
+            var nb1 = n1[i];
+            if (!seen[nb1]) {
+                seen[nb1] = true;
+                out[array_length(out)] = nb1;
+            }
+        }
+
+        for (var j = 0; j < array_length(n1); j++) {
+            var nb2_src = n1[j];
+            if (nb2_src < 0 || nb2_src >= array_length(vs.slot_neighbors)) continue;
+            var n2 = vs.slot_neighbors[nb2_src];
+            for (var k = 0; k < array_length(n2); k++) {
+                var nb2 = n2[k];
+                if (!seen[nb2]) {
+                    seen[nb2] = true;
+                    out[array_length(out)] = nb2;
+                }
+            }
+        }
+    }
+
+    return out;
+}
+
+function crossword_solver_choose_mrv_slot_from_indices(vs, slot_indices) {
     var best_slot_idx = -1;
     var best_candidates = [];
     var best_pattern = "";
@@ -1491,9 +1569,10 @@ function crossword_solver_choose_mrv_slot(vs) {
     var failed_slot = undefined;
     var failed_pattern = "";
 
-    for (var i = 0; i < array_length(vs.slots); i++) {
+    for (var ii = 0; ii < array_length(slot_indices); ii++) {
         global.solver_work_units++;
         crossword_solver_maybe_log_progress();
+        var i = slot_indices[ii];
         var slot_data = vs.slots[i];
         var domain = crossword_solver_get_slot_domain(vs, i, false);
         var pattern = domain.pattern;
@@ -1570,6 +1649,18 @@ function crossword_solver_choose_mrv_slot(vs) {
         failed_slot: undefined,
         failed_pattern: ""
     };
+}
+
+function crossword_solver_choose_mrv_slot_local_first(vs, focus_slot_idx) {
+    var local_indices = crossword_solver_collect_local_slot_indices(vs, focus_slot_idx);
+    if (array_length(local_indices) > 0) {
+        var local_choice = crossword_solver_choose_mrv_slot_from_indices(vs, local_indices);
+        if (local_choice.state == "dead" || local_choice.state == "ok") {
+            return local_choice;
+        }
+    }
+
+    return crossword_solver_choose_mrv_slot(vs);
 }
 
 
@@ -1703,6 +1794,7 @@ function crossword_solver_place_seeded_frame(vs, slot_idx, pattern) {
     vs.last_progress_ms = current_time;
     vs.last_progress_units = global.solver_work_units;
     show_debug_message("[Visual] Seed place " + crossword_solver_slot_label(slot_data) + "=" + word
+        + " comp=" + crossword_solver_component_label(vs, slot_idx)
         + " pattern=" + pattern + " pick=" + string(chosen_idx + 1) + "/" + string(n));
 
     return true;
@@ -1790,6 +1882,7 @@ function crossword_solver_push_frame(vs, choice) {
 
     var slot_data = vs.slots[choice.slot_idx];
     show_debug_message("[Visual] Select " + crossword_solver_slot_label(slot_data)
+        + " comp=" + crossword_solver_component_label(vs, choice.slot_idx)
         + " pattern=" + choice.pattern
         + " candidates=" + string(array_length(choice.candidates)));
 }
@@ -1870,6 +1963,7 @@ function crossword_solver_unwind_to_depth(vs, keep_max_idx) {
             if (ds_map_exists(global.usedWords, frame.placed_word)) {
                 ds_map_delete(global.usedWords, frame.placed_word);
             }
+            crossword_solver_invalidate_after_slot_change(vs, frame.slot_idx);
         }
     }
 
@@ -1998,7 +2092,7 @@ function crossword_solver_tick() {
     var top = vs.stack[top_idx];
 
     if (top.placed_word != "") {
-        var next_choice = crossword_solver_choose_mrv_slot(vs);
+        var next_choice = crossword_solver_choose_mrv_slot_local_first(vs, top.slot_idx);
 
         if (next_choice.state == "solved") {
             obj_heartbeat.status_text = "Visual solver complete";
@@ -2082,11 +2176,12 @@ function crossword_solver_tick() {
     }
 
     show_debug_message("[Visual] Try " + crossword_solver_slot_label(slot_data)
+        + " comp=" + crossword_solver_component_label(vs, top.slot_idx)
         + "=" + word
         + " pattern=" + top.pattern
         + " candidate " + string(top.next_candidate + 1) + "/" + string(array_length(top.candidates)));
 
-    var fc = crossword_solver_choose_mrv_slot(vs);
+    var fc = crossword_solver_choose_mrv_slot_local_first(vs, top.slot_idx);
 
     if (fc.state == "dead") {
         top.placed_word = word;
@@ -2283,7 +2378,7 @@ function crossword_start_visual_solver() {
     global.solver_work_units = 0;
     global.solver_start_time_ms = current_time;
     global.solver_last_progress_log_units = 0;
-    show_debug_message("[Visual] Start: MRV + forward-check + backtracking + fail flash.");
+    show_debug_message("[Visual] Start: MRV + forward-check + backtracking + fail flash. components=" + string(global.visual_solver.slot_component_count));
     return true;
 }
 

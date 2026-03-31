@@ -36,7 +36,7 @@
   "isEcma":false,
   "LibraryEmitters":[],
   "MetaData":{
-    "IDEVersion":"2024.14.3.217",
+    "IDEVersion":"2024.14.4.221",
   },
   "name":"Crossword",
   "resources":[
@@ -44,6 +44,7 @@
     {"id":{"name":"obj_fillGrid","path":"objects/obj_fillGrid/obj_fillGrid.yy",},},
     {"id":{"name":"obj_heartbeat","path":"objects/obj_heartbeat/obj_heartbeat.yy",},},
     {"id":{"name":"obj_loadButton","path":"objects/obj_loadButton/obj_loadButton.yy",},},
+    {"id":{"name":"obj_makePattern","path":"objects/obj_makePattern/obj_makePattern.yy",},},
     {"id":{"name":"obj_saveButton","path":"objects/obj_saveButton/obj_saveButton.yy",},},
     {"id":{"name":"obj_stopFill","path":"objects/obj_stopFill/obj_stopFill.yy",},},
     {"id":{"name":"obj_testWordList","path":"objects/obj_testWordList/obj_testWordList.yy",},},

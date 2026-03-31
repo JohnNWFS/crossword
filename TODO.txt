@@ -2,3 +2,11 @@ TODO
 
 - Build a curated long-entry phrase inventory for 11, 13, and 15 characters.
   Use it as an optional candidate source for future larger-grid fills.
+- Add regular word-entry mode:
+  when enabled, click an Across word with LMB or a Down word with RMB, move within that word with arrow keys, type letters directly into the active cell, `Space` clears the current cell, `Enter` commits, and `Esc` exits while keeping entered letters; disable normal grid edit clicks while this mode is active and show a clear active-cell highlight.
+- Evaluate whether the solver is actually bouncing between disconnected or effectively unrelated regions of the grid during fill.
+  Verify with instrumentation/logging that the observed "upper-left while lower-right is also being worked" behavior is real and not just a byproduct of slot ordering or redraw timing.
+- Review the new solver component-ID logging during real fills.
+  Confirm whether selected/seeded/tried slots are jumping between different connected components before making the locality/component-aware solver change.
+- If that verification is valid, add a solver improvement to reduce across-the-puzzle work on unrelated regions.
+  Prefer component-aware or locality-aware solving so independent regions are handled separately instead of consuming search effort simultaneously.

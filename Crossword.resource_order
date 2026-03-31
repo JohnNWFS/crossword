@@ -19,6 +19,7 @@
   "ResourceOrderSettings":[
     {"name":"obj_fillGrid","order":3,"path":"objects/obj_fillGrid/obj_fillGrid.yy",},
     {"name":"obj_loadButton","order":2,"path":"objects/obj_loadButton/obj_loadButton.yy",},
+    {"name":"obj_makePattern","order":5,"path":"objects/obj_makePattern/obj_makePattern.yy",},
     {"name":"obj_saveButton","order":1,"path":"objects/obj_saveButton/obj_saveButton.yy",},
     {"name":"obj_stopFill","order":7,"path":"objects/obj_stopFill/obj_stopFill.yy",},
     {"name":"obj_testWordList","order":4,"path":"objects/obj_testWordList/obj_testWordList.yy",},

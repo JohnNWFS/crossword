@@ -2221,6 +2221,33 @@ function crossword_solver_stop(solved) {
     }
 }
 
+// Returns all full-grid slots that have at least one cell inside the ROI rectangle.
+// Slots that straddle the boundary are included in full; their outside-ROI cells
+// already carry fixed letters that become pattern constraints for the solver.
+function crossword_build_slots_anchored_in_roi(x0, y0, w, h) {
+    var all_slots = crossword_build_slots();
+    var bsar_x1 = x0 + w;
+    var bsar_y1 = y0 + h;
+    var out = [];
+    var out_n = 0;
+
+    for (var bsar_i = 0; bsar_i < array_length(all_slots); bsar_i++) {
+        var bsar_s = all_slots[bsar_i];
+        var anchored = false;
+        for (var bsar_k = 0; bsar_k < bsar_s.len; bsar_k++) {
+            var bsar_c = bsar_s.col + ((bsar_s.dir == "A") ? bsar_k : 0);
+            var bsar_r = bsar_s.row + ((bsar_s.dir == "D") ? bsar_k : 0);
+            if (bsar_c >= x0 && bsar_c < bsar_x1 && bsar_r >= y0 && bsar_r < bsar_y1) {
+                anchored = true;
+                break;
+            }
+        }
+        if (anchored) out[out_n++] = bsar_s;
+    }
+
+    return out;
+}
+
 function crossword_build_slots_roi(x0, y0, w, h) {
     var slots = [];
     var count = 0;
@@ -2336,7 +2363,7 @@ function crossword_start_visual_solver() {
         }
     }
 
-    var slots = roi_on ? crossword_build_slots_roi(roi_x0, roi_y0, roi_w, roi_h) : crossword_build_slots();
+    var slots = roi_on ? crossword_build_slots_anchored_in_roi(roi_x0, roi_y0, roi_w, roi_h) : crossword_build_slots();
     if (array_length(slots) <= 0) {
         obj_heartbeat.status_text = "Visual solver: no slots";
         show_debug_message("[Visual] Missing fillable slots.");

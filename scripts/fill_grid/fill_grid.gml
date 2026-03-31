@@ -1715,6 +1715,7 @@ function crossword_solver_choose_seed_slot(vs) {
     var best_deg = -1;
     var best_len = -1;
     var best_pattern = "";
+    var best_has_anchor = false; // true if best candidate has >= 1 fixed letter
 
     for (var i = 0; i < array_length(vs.slots); i++) {
         global.solver_work_units++;
@@ -1735,9 +1736,28 @@ function crossword_solver_choose_seed_slot(vs) {
             deg = vs.slot_degree[i];
         }
 
-        // Primary: minimum remaining values; tie-break: higher degree, then longer.
-        if (c < best_count || (c == best_count && deg > best_deg) || (c == best_count && deg == best_deg && slot_data.len > best_len)) {
+        // Count fixed letters: a slot crossing a pre-placed entry is an anchor.
+        var css_fixed = 0;
+        var css_plen = string_length(pattern);
+        for (var css_k = 1; css_k <= css_plen; css_k++) {
+            if (string_char_at(pattern, css_k) != "_") css_fixed++;
+        }
+        var has_anchor = (css_fixed > 0);
+
+        // Priority: anchored > unanchored. Within same anchor status: MRV count,
+        // then degree, then length.
+        var css_better = false;
+        if (has_anchor && !best_has_anchor) {
+            css_better = true;
+        } else if (has_anchor == best_has_anchor) {
+            if (c < best_count) css_better = true;
+            else if (c == best_count && deg > best_deg) css_better = true;
+            else if (c == best_count && deg == best_deg && slot_data.len > best_len) css_better = true;
+        }
+
+        if (css_better) {
             best_count = c;
+            best_has_anchor = has_anchor;
             best_deg = deg;
             best_len = slot_data.len;
             best_slot_idx = i;
@@ -2396,6 +2416,29 @@ function crossword_start_visual_solver() {
         last_progress_units: 0
     };
     crossword_solver_init_domain_cache(global.visual_solver);
+
+    // Boost seed count when theme entries are pre-placed.
+    // Any fillable slot with 2+ fixed letters is directly constrained by a pre-placed
+    // entry. Seeding all of them first builds a proper scaffold before MRV starts,
+    // avoiding the situation where the solver tries to fill an empty 15x15 cold.
+    var asc_anchor_count = 0;
+    var asc_slots = global.visual_solver.slots;
+    var asc_n = array_length(asc_slots);
+    for (var asc_i = 0; asc_i < asc_n; asc_i++) {
+        var asc_s = asc_slots[asc_i];
+        if (asc_s.len >= global.long_entry_min_len) continue;
+        var asc_pat = crossword_slot_pattern(asc_s);
+        var asc_fixed = 0;
+        for (var asc_k = 1; asc_k <= string_length(asc_pat); asc_k++) {
+            if (string_char_at(asc_pat, asc_k) != "_") asc_fixed++;
+        }
+        if (asc_fixed >= 2) asc_anchor_count++;
+    }
+    if (asc_anchor_count > global.visual_solver.seed_remaining) {
+        global.visual_solver.seed_remaining = min(asc_anchor_count, 40);
+        show_debug_message("[Visual] Anchor seeding: " + string(asc_anchor_count)
+            + " pre-constrained slots found -> seed_remaining=" + string(global.visual_solver.seed_remaining));
+    }
 
     obj_heartbeat.solver_active = true;
     crossword_solver_clear_visuals();
